@@ -154,7 +154,10 @@ async function gql(query, variables = {}) {
   });
   if (res.status === 401) { sessionStorage.removeItem(TOKEN_KEY); throw new Error("Sessione scaduta: accedi di nuovo."); }
   const j = await res.json();
-  if (j.errors && !j.data) throw new Error(j.errors.map((e) => e.message).join("; "));
+  if (j.errors) console.warn("GraphQL:", j.errors.map((e) => e.message).join("; "));
+  if (!j.data || Object.values(j.data).every((v) => v === null)) {
+    throw new Error((j.errors || []).map((e) => e.message).join("; ") || `Risposta non valida (HTTP ${res.status})`);
+  }
   return j.data;
 }
 
@@ -170,20 +173,40 @@ async function rest(path) {
   return res.json();
 }
 
+// Dati di base: accessibili con i permessi minimi dell'app.
 const Q_PROFILE = `
 query {
   viewer {
     login name avatarUrl url createdAt bio company location
-    followers { totalCount }
-    following { totalCount }
-    gists(privacy: ALL) { totalCount }
-    starredRepositories { totalCount }
-    issues { totalCount }
-    pullRequests { totalCount }
-    mergedPRs: pullRequests(states: MERGED) { totalCount }
     contributionsCollection { contributionYears }
   }
 }`;
+
+// Conteggi facoltativi: ognuno in una query separata, così se l'app non ha
+// il permesso per uno di questi ("Resource not accessible by integration")
+// gli altri dati vengono caricati lo stesso.
+const OPTIONAL_COUNTS = {
+  followers: "followers { totalCount }",
+  following: "following { totalCount }",
+  gists: "gists { totalCount }",
+  starredRepositories: "starredRepositories { totalCount }",
+  issues: "issues { totalCount }",
+  pullRequests: "pullRequests { totalCount }",
+  mergedPRs: "mergedPRs: pullRequests(states: MERGED) { totalCount }",
+};
+
+async function fetchOptionalCounts() {
+  const out = {};
+  await Promise.all(Object.entries(OPTIONAL_COUNTS).map(async ([key, field]) => {
+    try {
+      const v = (await gql(`query { viewer { ${field} } }`))?.viewer?.[key];
+      out[key] = v ? v : { totalCount: null };
+    } catch {
+      out[key] = { totalCount: null };
+    }
+  }));
+  return out;
+}
 
 function yearsQuery(years) {
   const now = new Date();
@@ -220,6 +243,7 @@ query($cursor: String) {
 async function fetchAll() {
   setLoading("Leggo il profilo…");
   const profile = (await gql(Q_PROFILE)).viewer;
+  Object.assign(profile, await fetchOptionalCounts());
 
   // Contributi di tutti gli anni (a gruppi di 3 per non appesantire la query)
   const years = [...profile.contributionsCollection.contributionYears].sort((a, b) => a - b);
@@ -360,7 +384,7 @@ function renderProfile(p, s) {
     el("span", { text: `📅 Su GitHub dal ${df.format(s.created)}` }),
     p.location && el("span", { text: `📍 ${p.location}` }),
     p.company && el("span", { text: `🏢 ${p.company}` }),
-    el("span", { text: `👥 ${nf.format(p.followers.totalCount)} follower · ${nf.format(p.following.totalCount)} seguiti` }),
+    p.followers.totalCount !== null && el("span", { text: `👥 ${nf.format(p.followers.totalCount)} follower · ${nf.format(p.following.totalCount ?? 0)} seguiti` }),
   );
   $("profile").replaceChildren(
     el("img", { src: p.avatarUrl, alt: "", width: 72, height: 72 }),
@@ -480,13 +504,16 @@ function renderFacts(d, s) {
   if (s.activeDays) add("⚡", "Giorni attivi: ", el("strong", { text: nf.format(s.activeDays) }), ` · media ${(s.totals.all / s.activeDays).toFixed(1)} contributi per giorno attivo`);
   add("💻", "Commit totali: ", el("strong", { text: nf.format(s.totals.commits) }), ` · review fatte: ${nf.format(s.totals.reviews)}`);
   if (p.pullRequests.totalCount)
-    add("🔀", "Pull request: ", el("strong", { text: nf.format(p.pullRequests.totalCount) }), ` · ${Math.round((p.mergedPRs.totalCount / p.pullRequests.totalCount) * 100)}% unite`);
-  add("🐛", "Issue aperte: ", el("strong", { text: nf.format(p.issues.totalCount) }));
+    add("🔀", "Pull request: ", el("strong", { text: nf.format(p.pullRequests.totalCount) }),
+      p.mergedPRs.totalCount !== null ? ` · ${Math.round((p.mergedPRs.totalCount / p.pullRequests.totalCount) * 100)}% unite` : "");
+  if (p.issues.totalCount !== null) add("🐛", "Issue aperte: ", el("strong", { text: nf.format(p.issues.totalCount) }));
   if (s.topLangs[0]) add("🧠", "Linguaggio principale: ", el("strong", { text: s.topLangs[0].name }), ` su ${s.langCount} usati`);
   if (s.topStarred && s.topStarred.stargazerCount > 0)
     add("⭐", "Repo più amato: ", el("a", { href: s.topStarred.url, target: "_blank", rel: "noopener", text: s.topStarred.name }), ` (${nf.format(s.topStarred.stargazerCount)} stelle)`);
   if (s.oldestRepo) add("🏛️", "Primo repository: ", el("strong", { text: s.oldestRepo.name }), ` (${df.format(new Date(s.oldestRepo.createdAt))})`);
-  add("📝", "Gist: ", el("strong", { text: nf.format(p.gists.totalCount) }), ` · repo messi tra le stelle: ${nf.format(p.starredRepositories.totalCount)}`);
+  if (p.gists.totalCount !== null || p.starredRepositories.totalCount !== null)
+    add("📝", "Gist: ", el("strong", { text: p.gists.totalCount !== null ? nf.format(p.gists.totalCount) : "—" }),
+      p.starredRepositories.totalCount !== null ? ` · repo messi tra le stelle: ${nf.format(p.starredRepositories.totalCount)}` : "");
 
   $("facts").replaceChildren(...facts);
 }
