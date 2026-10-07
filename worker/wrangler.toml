@@ -1,12 +1,17 @@
 name = "github-stats-auth"
 main = "src/index.js"
-compatibility_date = "2026-09-01"
+compatibility_date = "2026-10-06"
+preview_urls = false
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
 
 [vars]
-# Il dominio del tuo sito GitHub Pages, SENZA slash finale e senza percorso.
-# Per più domini separali con una virgola.
-ALLOWED_ORIGIN = "https://TUONOME.github.io"
+ALLOWED_ORIGIN = "https://lorenzopallotta.github.io"
 
-# I due valori segreti NON vanno scritti qui. Impostali con:
-#   npx wrangler secret put GITHUB_CLIENT_ID
-#   npx wrangler secret put GITHUB_CLIENT_SECRET
+[[kv_namespaces]]
+binding = "CARDS"
+id = "4684d987ba0449f8b0a608cef5ef4ff8"

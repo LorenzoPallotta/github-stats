@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://avatars.githubusercontent.com data:; connect-src https://api.github.com https://*.workers.dev; base-uri 'none'; form-action 'none'">
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://avatars.githubusercontent.com https://*.workers.dev data:; connect-src https://api.github.com https://*.workers.dev; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <title>GitHub Stats</title>
   <link rel="stylesheet" href="style.css">
@@ -16,29 +16,29 @@
       <span>GitHub Stats</span>
     </div>
     <div class="topbar-actions">
-      <button type="button" id="btnTheme" class="btn btn-ghost" aria-label="Cambia tema">◐</button>
-      <a id="btnInstall" class="btn btn-ghost" hidden target="_blank" rel="noopener">Scegli repository</a>
-      <button type="button" id="btnLogout" class="btn btn-ghost" hidden>Esci</button>
+      <button type="button" id="btnTheme" class="btn btn-ghost" aria-label="Toggle theme">◐</button>
+      <a id="btnInstall" class="btn btn-ghost" hidden target="_blank" rel="noopener">Choose repositories</a>
+      <button type="button" id="btnLogout" class="btn btn-ghost" hidden>Sign out</button>
     </div>
   </header>
 
   <main id="app">
-    <!-- Schermata di accesso -->
+    <!-- Login screen -->
     <section id="viewLogin" class="login" hidden>
-      <h1>Le tue statistiche GitHub,<br>anche dei repository privati</h1>
-      <p class="muted">Accedi con GitHub: i dati vengono letti direttamente dal tuo browser e non vengono salvati da nessuna parte.</p>
-      <button type="button" id="btnLogin" class="btn btn-primary btn-lg">Accedi con GitHub</button>
-      <p class="small muted">Per vedere i repository privati, dopo l'accesso usa <strong>“Scegli repository”</strong> e seleziona quelli da includere.</p>
+      <h1>Your GitHub stats,<br>private repositories included</h1>
+      <p class="muted">Sign in with GitHub: your data is read directly by your browser and is never stored anywhere.</p>
+      <button type="button" id="btnLogin" class="btn btn-primary btn-lg">Sign in with GitHub</button>
+      <p class="small muted">To see private repositories, after signing in use <strong>“Choose repositories”</strong> and select the ones to include.</p>
       <p id="configWarning" class="notice notice-warn" hidden></p>
     </section>
 
-    <!-- Caricamento -->
+    <!-- Loading -->
     <section id="viewLoading" class="loading" hidden>
       <div class="spinner" aria-hidden="true"></div>
-      <p id="loadingText">Carico i dati…</p>
+      <p id="loadingText">Loading data…</p>
     </section>
 
-    <!-- Errore -->
+    <!-- Error -->
     <section id="viewError" class="notice notice-error" hidden></section>
 
     <!-- Dashboard -->
@@ -49,43 +49,43 @@
 
       <div class="card">
         <div class="card-head">
-          <h2>Contributi degli ultimi 12 mesi</h2>
+          <h2>Contributions in the last 12 months</h2>
           <span id="calendarTotal" class="muted"></span>
         </div>
         <div id="calendar" class="calendar-wrap"></div>
         <div class="legend-scale" aria-hidden="true">
-          <span class="muted small">meno</span>
+          <span class="muted small">less</span>
           <span class="cell lvl-0"></span><span class="cell lvl-1"></span><span class="cell lvl-2"></span><span class="cell lvl-3"></span><span class="cell lvl-4"></span>
-          <span class="muted small">più</span>
+          <span class="muted small">more</span>
         </div>
       </div>
 
       <div class="grid-2">
         <div class="card">
-          <div class="card-head"><h2>Contributi per anno</h2></div>
+          <div class="card-head"><h2>Contributions per year</h2></div>
           <div id="chartYears" class="vbars"></div>
         </div>
         <div class="card">
-          <div class="card-head"><h2>Giorno della settimana preferito</h2></div>
+          <div class="card-head"><h2>Favourite day of the week</h2></div>
           <div id="chartWeekday" class="vbars"></div>
         </div>
       </div>
 
       <div class="grid-2">
         <div class="card">
-          <div class="card-head"><h2>Linguaggi</h2><span class="muted small">per dimensione del codice, fork esclusi</span></div>
+          <div class="card-head"><h2>Languages</h2><span class="muted small">by code size, forks excluded</span></div>
           <div id="chartLanguages" class="hbars"></div>
         </div>
         <div class="card">
-          <div class="card-head"><h2>Curiosità</h2></div>
+          <div class="card-head"><h2>Fun facts</h2></div>
           <ul id="facts" class="facts"></ul>
         </div>
       </div>
 
       <div class="card">
         <div class="card-head">
-          <h2>Traffico (ultimi 14 giorni)</h2>
-          <span class="muted small">visite e cloni dei tuoi repository</span>
+          <h2>Traffic (last 14 days)</h2>
+          <span class="muted small">views and clones of your repositories</span>
         </div>
         <div id="traffic"></div>
       </div>
@@ -93,18 +93,18 @@
       <div class="card">
         <div class="card-head">
           <h2>Repository</h2>
-          <input type="search" id="repoFilter" placeholder="Filtra…" aria-label="Filtra repository">
+          <input type="search" id="repoFilter" placeholder="Filter…" aria-label="Filter repositories">
         </div>
         <div class="table-wrap">
           <table id="repoTable" class="table">
             <thead>
               <tr>
-                <th data-sort="name">Nome</th>
-                <th data-sort="visibility">Visibilità</th>
-                <th data-sort="language">Linguaggio</th>
-                <th data-sort="stars" class="num">Stelle</th>
-                <th data-sort="forks" class="num">Fork</th>
-                <th data-sort="pushedAt">Ultimo push</th>
+                <th data-sort="name">Name</th>
+                <th data-sort="visibility">Visibility</th>
+                <th data-sort="language">Language</th>
+                <th data-sort="stars" class="num">Stars</th>
+                <th data-sort="forks" class="num">Forks</th>
+                <th data-sort="pushedAt">Last push</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -112,7 +112,38 @@
         </div>
       </div>
 
-      <p class="small muted footer-note">Dati letti in tempo reale dalle API di GitHub con il tuo accesso. Nessun dato lascia il tuo browser.</p>
+      <div class="card" id="cardSection">
+        <div class="card-head">
+          <h2>Card for your README</h2>
+          <span class="muted small">show these stats on your GitHub profile</span>
+        </div>
+        <p class="small muted card-intro">
+          Publishing saves only the numbers shown on the card (no login data) so the image can be displayed in any README.
+          The card doesn't update by itself: come back and click <strong>Update card</strong> to refresh it.
+        </p>
+        <div class="card-actions">
+          <button type="button" id="btnCardPublish" class="btn btn-primary">Publish card</button>
+          <button type="button" id="btnCardDelete" class="btn" hidden>Remove card</button>
+          <span id="cardStatus" class="small muted" role="status"></span>
+        </div>
+        <div id="cardPublished" hidden>
+          <div class="card-preview">
+            <img id="cardPreview" alt="Preview of your GitHub Stats card" width="500" height="245">
+          </div>
+          <label class="small" for="cardSnippetMd">Markdown</label>
+          <div class="snippet">
+            <textarea id="cardSnippetMd" readonly rows="1"></textarea>
+            <button type="button" class="btn" data-copy="cardSnippetMd">Copy</button>
+          </div>
+          <label class="small" for="cardSnippetHtml">HTML (follows the reader's light/dark theme)</label>
+          <div class="snippet">
+            <textarea id="cardSnippetHtml" readonly rows="4"></textarea>
+            <button type="button" class="btn" data-copy="cardSnippetHtml">Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="small muted footer-note">Data read live from the GitHub API with your sign-in. Nothing leaves your browser unless you publish a card.</p>
     </section>
   </main>
 

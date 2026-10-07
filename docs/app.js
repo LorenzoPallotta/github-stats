@@ -14,11 +14,11 @@ const MAX_REPO_PAGES = 10;      // fino a 1000 repository
 const MAX_TRAFFIC_REPOS = 25;   // traffico: i repo con push più recente
 
 const $ = (id) => document.getElementById(id);
-const nf = new Intl.NumberFormat("it-IT");
-const df = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", year: "numeric" });
-const dfShort = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short" });
-const WEEKDAYS = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
-const WEEKDAYS_SHORT = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
+const nf = new Intl.NumberFormat("en-US");
+const df = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long", year: "numeric" });
+const dfShort = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short" });
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const WEEKDAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /* ---------- Utilità DOM (niente innerHTML con dati esterni) ---------- */
 function el(tag, attrs = {}, ...children) {
@@ -41,7 +41,7 @@ function show(id) {
 }
 function setLoading(text) { $("loadingText").textContent = text; show("viewLoading"); }
 function showError(msg) {
-  $("viewError").replaceChildren(el("strong", { text: "Errore: " }), msg);
+  $("viewError").replaceChildren(el("strong", { text: "Error: " }), msg);
   show("viewError");
 }
 function localISO(d) {
@@ -127,9 +127,9 @@ async function handleCallback() {
   history.replaceState(null, "", redirectUri()); // toglie ?code dall'indirizzo
 
   // Se l'accesso arriva dall'installazione dell'app non c'è "state": va bene lo stesso.
-  if (state && state !== expected) throw new Error("Verifica di sicurezza non superata (state). Riprova l'accesso.");
+  if (state && state !== expected) throw new Error("Security check failed (state). Please sign in again.");
 
-  setLoading("Completo l'accesso…");
+  setLoading("Completing sign-in…");
   const res = await fetch(CFG.WORKER_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -137,7 +137,7 @@ async function handleCallback() {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.access_token) {
-    throw new Error(`Accesso non riuscito (${data.error_description || data.error || res.status}).`);
+    throw new Error(`Sign-in failed (${data.error_description || data.error || res.status}).`);
   }
   sessionStorage.setItem(TOKEN_KEY, data.access_token);
   return true;
@@ -152,11 +152,11 @@ async function gql(query, variables = {}) {
     headers: { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" },
     body: JSON.stringify({ query, variables }),
   });
-  if (res.status === 401) { sessionStorage.removeItem(TOKEN_KEY); throw new Error("Sessione scaduta: accedi di nuovo."); }
+  if (res.status === 401) { sessionStorage.removeItem(TOKEN_KEY); throw new Error("Session expired: please sign in again."); }
   const j = await res.json();
   if (j.errors) console.warn("GraphQL:", j.errors.map((e) => e.message).join("; "));
   if (!j.data || Object.values(j.data).every((v) => v === null)) {
-    throw new Error((j.errors || []).map((e) => e.message).join("; ") || `Risposta non valida (HTTP ${res.status})`);
+    throw new Error((j.errors || []).map((e) => e.message).join("; ") || `Invalid response (HTTP ${res.status})`);
   }
   return j.data;
 }
@@ -234,14 +234,14 @@ query($cursor: String) {
         stargazerCount forkCount pushedAt createdAt viewerPermission
         owner { login }
         primaryLanguage { name }
-        languages(first: 10, orderBy: { field: SIZE, direction: DESC }) { edges { size node { name } } }
+        languages(first: 10, orderBy: { field: SIZE, direction: DESC }) { edges { size node { name color } } }
       }
     }
   }
 }`;
 
 async function fetchAll() {
-  setLoading("Leggo il profilo…");
+  setLoading("Reading profile…");
   const profile = (await gql(Q_PROFILE)).viewer;
   Object.assign(profile, await fetchOptionalCounts());
 
@@ -250,7 +250,7 @@ async function fetchAll() {
   const yearly = {};
   for (let i = 0; i < years.length; i += 3) {
     const chunk = years.slice(i, i + 3);
-    setLoading(`Leggo i contributi ${chunk[0]}–${chunk[chunk.length - 1]}…`);
+    setLoading(`Reading contributions ${chunk[0]}–${chunk[chunk.length - 1]}…`);
     const data = (await gql(yearsQuery(chunk))).viewer;
     for (const y of chunk) yearly[y] = data[`y${y}`];
   }
@@ -259,7 +259,7 @@ async function fetchAll() {
   const repos = [];
   let cursor = null, totalCount = 0;
   for (let page = 0; page < MAX_REPO_PAGES; page++) {
-    setLoading(`Leggo i repository… (${repos.length})`);
+    setLoading(`Reading repositories… (${repos.length})`);
     const r = (await gql(Q_REPOS, { cursor })).viewer.repositories;
     totalCount = r.totalCount;
     repos.push(...r.nodes.filter(Boolean));
@@ -268,7 +268,7 @@ async function fetchAll() {
   }
 
   // Traffico: solo repo su cui hai permessi di scrittura/amministrazione
-  setLoading("Leggo il traffico dei repository…");
+  setLoading("Reading repository traffic…");
   const trafficCandidates = repos
     .filter((r) => ["ADMIN", "MAINTAIN", "WRITE"].includes(r.viewerPermission) && !r.isArchived)
     .slice(0, MAX_TRAFFIC_REPOS);
@@ -357,13 +357,17 @@ function computeStats(d) {
 
   // Linguaggi (byte di codice, fork esclusi)
   const langs = new Map();
+  const langColors = new Map();
   for (const r of d.repos.filter((r) => !r.isFork))
-    for (const e of r.languages.edges) langs.set(e.node.name, (langs.get(e.node.name) || 0) + e.size);
+    for (const e of r.languages.edges) {
+      langs.set(e.node.name, (langs.get(e.node.name) || 0) + e.size);
+      if (e.node.color) langColors.set(e.node.name, e.node.color);
+    }
   const langTotal = [...langs.values()].reduce((a, b) => a + b, 0);
   const langList = [...langs.entries()].sort((a, b) => b[1] - a[1]);
-  const topLangs = langList.slice(0, 7).map(([name, size]) => ({ name, size }));
+  const topLangs = langList.slice(0, 7).map(([name, size]) => ({ name, size, color: langColors.get(name) || null }));
   const others = langList.slice(7).reduce((acc, [, v]) => acc + v, 0);
-  if (others > 0) topLangs.push({ name: "Altro", size: others });
+  if (others > 0) topLangs.push({ name: "Other", size: others, other: true });
 
   const created = new Date(d.profile.createdAt);
   const ageYears = (Date.now() - created) / (365.25 * 864e5);
@@ -381,10 +385,10 @@ function computeStats(d) {
    ========================================================= */
 function renderProfile(p, s) {
   const meta = el("div", { class: "meta" },
-    el("span", { text: `📅 Su GitHub dal ${df.format(s.created)}` }),
+    el("span", { text: `📅 On GitHub since ${df.format(s.created)}` }),
     p.location && el("span", { text: `📍 ${p.location}` }),
     p.company && el("span", { text: `🏢 ${p.company}` }),
-    p.followers.totalCount !== null && el("span", { text: `👥 ${nf.format(p.followers.totalCount)} follower · ${nf.format(p.following.totalCount ?? 0)} seguiti` }),
+    p.followers.totalCount !== null && el("span", { text: `👥 ${nf.format(p.followers.totalCount)} followers · ${nf.format(p.following.totalCount ?? 0)} following` }),
   );
   $("profile").replaceChildren(
     el("img", { src: p.avatarUrl, alt: "", width: 72, height: 72 }),
@@ -405,23 +409,23 @@ function tile(label, value, sub) {
 }
 
 function renderTiles(d, s) {
-  const years = s.ageYears >= 1 ? `${Math.floor(s.ageYears)} anni` : `${Math.max(1, Math.round(s.ageYears * 12))} mesi`;
+  const years = s.ageYears >= 1 ? `${Math.floor(s.ageYears)} years` : `${Math.max(1, Math.round(s.ageYears * 12))} months`;
   $("tiles").replaceChildren(
-    tile("Iscritto da", years, df.format(s.created)),
-    tile("Contributi totali", nf.format(s.totals.all), `di cui ${nf.format(s.totals.restricted)} privati`),
-    tile("Streak attuale", `${nf.format(s.current)} ${s.current === 1 ? "giorno" : "giorni"}`,
-      s.current ? `dal ${df.format(parseISODate(s.currentStart))}` : "fai un commit oggi!"),
-    tile("Streak più lunga", `${nf.format(s.longest)} ${s.longest === 1 ? "giorno" : "giorni"}`,
-      s.longestEnd ? `finita il ${df.format(parseISODate(s.longestEnd))}` : ""),
-    tile("Repository", nf.format(d.totalRepoCount), `${nf.format(s.privateCount)} privati`),
-    tile("Stelle ricevute", nf.format(s.starsReceived), `${nf.format(s.forksReceived)} fork`),
+    tile("Member for", years, df.format(s.created)),
+    tile("Total contributions", nf.format(s.totals.all), `${nf.format(s.totals.restricted)} of them private`),
+    tile("Current streak", `${nf.format(s.current)} ${s.current === 1 ? "day" : "days"}`,
+      s.current ? `since ${df.format(parseISODate(s.currentStart))}` : "make a commit today!"),
+    tile("Longest streak", `${nf.format(s.longest)} ${s.longest === 1 ? "day" : "days"}`,
+      s.longestEnd ? `ended ${df.format(parseISODate(s.longestEnd))}` : ""),
+    tile("Repositories", nf.format(d.totalRepoCount), `${nf.format(s.privateCount)} private`),
+    tile("Stars received", nf.format(s.starsReceived), `${nf.format(s.forksReceived)} forks`),
   );
 }
 
 function renderCalendar(s) {
   const days = s.lastYear;
-  $("calendarTotal").textContent = `${nf.format(days.reduce((a, b) => a + b.count, 0))} contributi`;
-  if (!days.length) { $("calendar").replaceChildren(el("p", { class: "muted", text: "Nessun contributo." })); return; }
+  $("calendarTotal").textContent = `${nf.format(days.reduce((a, b) => a + b.count, 0))} contributions`;
+  if (!days.length) { $("calendar").replaceChildren(el("p", { class: "muted", text: "No contributions." })); return; }
 
   // Soglie per 4 livelli (quartili dei giorni attivi)
   const active = days.map((x) => x.count).filter((c) => c > 0).sort((a, b) => a - b);
@@ -429,7 +433,7 @@ function renderCalendar(s) {
   const t1 = q(0.25), t2 = q(0.5), t3 = q(0.75);
   const level = (c) => (c === 0 ? 0 : c <= t1 ? 1 : c <= t2 ? 2 : c <= t3 ? 3 : 4);
 
-  const grid = el("div", { class: "calendar", role: "img", "aria-label": "Calendario dei contributi degli ultimi 12 mesi" });
+  const grid = el("div", { class: "calendar", role: "img", "aria-label": "Contribution calendar for the last 12 months" });
   const firstDow = parseISODate(days[0].date).getDay();
   for (let i = 0; i < firstDow; i++) grid.append(el("span", { class: "cell empty" }));
   for (const dd of days) {
@@ -437,7 +441,7 @@ function renderCalendar(s) {
     grid.append(el("span", {
       class: `cell lvl-${level(dd.count)}`,
       tabindex: "0",
-      "data-tip": `${dd.count === 0 ? "Nessun" : nf.format(dd.count)} contribut${dd.count === 1 ? "o" : "i"} · ${WEEKDAYS[dt.getDay()]} ${df.format(dt)}`,
+      "data-tip": `${dd.count === 0 ? "No" : nf.format(dd.count)} contribution${dd.count === 1 ? "" : "s"} · ${WEEKDAYS[dt.getDay()]}, ${df.format(dt)}`,
     }));
   }
   $("calendar").replaceChildren(grid);
@@ -458,7 +462,7 @@ function renderVBars(container, items) {
 
 function renderYears(s) {
   renderVBars($("chartYears"), s.perYear.map((y) => ({
-    label: String(y.year), value: y.total, tip: `${y.year}: ${nf.format(y.total)} contributi`,
+    label: String(y.year), value: y.total, tip: `${y.year}: ${nf.format(y.total)} contributions`,
   })));
 }
 
@@ -468,12 +472,12 @@ function renderWeekday(s) {
   const total = s.weekday.reduce((a, b) => a + b, 0) || 1;
   renderVBars($("chartWeekday"), order.map((i) => ({
     label: WEEKDAYS_SHORT[i], value: s.weekday[i],
-    tip: `${WEEKDAYS[i]}: ${nf.format(s.weekday[i])} contributi (${Math.round((s.weekday[i] / total) * 100)}%)`,
+    tip: `${WEEKDAYS[i]}: ${nf.format(s.weekday[i])} contributions (${Math.round((s.weekday[i] / total) * 100)}%)`,
   })));
 }
 
 function renderLanguages(s) {
-  if (!s.topLangs.length) { $("chartLanguages").replaceChildren(el("p", { class: "muted", text: "Nessun dato sui linguaggi." })); return; }
+  if (!s.topLangs.length) { $("chartLanguages").replaceChildren(el("p", { class: "muted", text: "No language data." })); return; }
   const max = s.topLangs[0].size;
   $("chartLanguages").replaceChildren(...s.topLangs.map((l) => {
     const pct = (l.size / s.langTotal) * 100;
@@ -496,24 +500,24 @@ function renderFacts(d, s) {
   const add = (icon, ...parts) => facts.push(el("li", {}, el("span", { class: "icon", "aria-hidden": "true", text: icon }), el("span", {}, ...parts)));
 
   if (s.best && s.best.count > 0)
-    add("🔥", "Giorno più produttivo: ", el("strong", { text: nf.format(s.best.count) }), ` contributi il ${df.format(parseISODate(s.best.date))}`);
+    add("🔥", "Most productive day: ", el("strong", { text: nf.format(s.best.count) }), ` contributions on ${df.format(parseISODate(s.best.date))}`);
   if (s.bestMonth)
-    add("🗓️", "Mese record: ", el("strong", { text: new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" }).format(parseISODate(s.bestMonth.m + "-01")) }), ` con ${nf.format(s.bestMonth.v)} contributi`);
+    add("🗓️", "Best month: ", el("strong", { text: new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(parseISODate(s.bestMonth.m + "-01")) }), ` with ${nf.format(s.bestMonth.v)} contributions`);
   const fav = s.weekday.indexOf(Math.max(...s.weekday));
-  if (s.weekday[fav] > 0) add("📆", "Giorno preferito: ", el("strong", { text: WEEKDAYS[fav].toLowerCase() }));
-  if (s.activeDays) add("⚡", "Giorni attivi: ", el("strong", { text: nf.format(s.activeDays) }), ` · media ${(s.totals.all / s.activeDays).toFixed(1)} contributi per giorno attivo`);
-  add("💻", "Commit totali: ", el("strong", { text: nf.format(s.totals.commits) }), ` · review fatte: ${nf.format(s.totals.reviews)}`);
+  if (s.weekday[fav] > 0) add("📆", "Favourite day: ", el("strong", { text: WEEKDAYS[fav] }));
+  if (s.activeDays) add("⚡", "Active days: ", el("strong", { text: nf.format(s.activeDays) }), ` · ${(s.totals.all / s.activeDays).toFixed(1)} contributions per active day on average`);
+  add("💻", "Total commits: ", el("strong", { text: nf.format(s.totals.commits) }), ` · reviews: ${nf.format(s.totals.reviews)}`);
   if (p.pullRequests.totalCount)
-    add("🔀", "Pull request: ", el("strong", { text: nf.format(p.pullRequests.totalCount) }),
-      p.mergedPRs.totalCount !== null ? ` · ${Math.round((p.mergedPRs.totalCount / p.pullRequests.totalCount) * 100)}% unite` : "");
-  if (p.issues.totalCount !== null) add("🐛", "Issue aperte: ", el("strong", { text: nf.format(p.issues.totalCount) }));
-  if (s.topLangs[0]) add("🧠", "Linguaggio principale: ", el("strong", { text: s.topLangs[0].name }), ` su ${s.langCount} usati`);
+    add("🔀", "Pull requests: ", el("strong", { text: nf.format(p.pullRequests.totalCount) }),
+      p.mergedPRs.totalCount !== null ? ` · ${Math.round((p.mergedPRs.totalCount / p.pullRequests.totalCount) * 100)}% merged` : "");
+  if (p.issues.totalCount !== null) add("🐛", "Issues opened: ", el("strong", { text: nf.format(p.issues.totalCount) }));
+  if (s.topLangs[0]) add("🧠", "Main language: ", el("strong", { text: s.topLangs[0].name }), ` out of ${s.langCount} used`);
   if (s.topStarred && s.topStarred.stargazerCount > 0)
-    add("⭐", "Repo più amato: ", el("a", { href: s.topStarred.url, target: "_blank", rel: "noopener", text: s.topStarred.name }), ` (${nf.format(s.topStarred.stargazerCount)} stelle)`);
-  if (s.oldestRepo) add("🏛️", "Primo repository: ", el("strong", { text: s.oldestRepo.name }), ` (${df.format(new Date(s.oldestRepo.createdAt))})`);
+    add("⭐", "Most starred repo: ", el("a", { href: s.topStarred.url, target: "_blank", rel: "noopener", text: s.topStarred.name }), ` (${nf.format(s.topStarred.stargazerCount)} stars)`);
+  if (s.oldestRepo) add("🏛️", "First repository: ", el("strong", { text: s.oldestRepo.name }), ` (${df.format(new Date(s.oldestRepo.createdAt))})`);
   if (p.gists.totalCount !== null || p.starredRepositories.totalCount !== null)
-    add("📝", "Gist: ", el("strong", { text: p.gists.totalCount !== null ? nf.format(p.gists.totalCount) : "—" }),
-      p.starredRepositories.totalCount !== null ? ` · repo messi tra le stelle: ${nf.format(p.starredRepositories.totalCount)}` : "");
+    add("📝", "Gists: ", el("strong", { text: p.gists.totalCount !== null ? nf.format(p.gists.totalCount) : "—" }),
+      p.starredRepositories.totalCount !== null ? ` · starred repos: ${nf.format(p.starredRepositories.totalCount)}` : "");
 
   $("facts").replaceChildren(...facts);
 }
@@ -522,21 +526,21 @@ function renderTraffic(d) {
   const box = $("traffic");
   if (!d.traffic.length) {
     const msg = d.trafficTried === 0
-      ? "Nessun repository con permessi di scrittura tra quelli accessibili all'app."
-      : "Il traffico non è disponibile: l'app non ha il permesso “Administration: read” oppure non è installata su questi repository.";
+      ? "No repositories with write access among those the app can reach."
+      : "Traffic is unavailable: the app lacks the “Administration: read” permission or is not installed on these repositories.";
     box.replaceChildren(el("p", { class: "muted", text: msg }));
     return;
   }
   const rows = [...d.traffic].sort((a, b) => b.views.count - a.views.count).map(({ repo, views, clones }) => {
     const max = Math.max(1, ...views.views.map((v) => v.count));
-    const spark = el("div", { class: "spark", role: "img", "aria-label": `Visite giornaliere di ${repo.name}` },
+    const spark = el("div", { class: "spark", role: "img", "aria-label": `Daily views of ${repo.name}` },
       views.views.map((v) => el("span", {
         style: `height:${(v.count / max) * 100}%`,
-        "data-tip": `${dfShort.format(new Date(v.timestamp))}: ${nf.format(v.count)} visite (${nf.format(v.uniques)} uniche)`,
+        "data-tip": `${dfShort.format(new Date(v.timestamp))}: ${nf.format(v.count)} views (${nf.format(v.uniques)} unique)`,
       })));
     return el("tr", {},
       el("td", {}, el("a", { href: repo.url, target: "_blank", rel: "noopener", text: repo.name }), " ",
-        repo.isPrivate ? el("span", { class: "badge badge-private", text: "privato" }) : null),
+        repo.isPrivate ? el("span", { class: "badge badge-private", text: "private" }) : null),
       el("td", { class: "num", text: nf.format(views.count) }),
       el("td", { class: "num", text: nf.format(views.uniques) }),
       el("td", { class: "num", text: nf.format(clones.count) }),
@@ -545,11 +549,11 @@ function renderTraffic(d) {
   });
   const table = el("table", { class: "table" },
     el("thead", {}, el("tr", {},
-      el("th", { text: "Repository" }), el("th", { class: "num", text: "Visite" }), el("th", { class: "num", text: "Visitatori unici" }),
-      el("th", { class: "num", text: "Cloni" }), el("th", { class: "num", text: "Cloni unici" }), el("th", { text: "Visite al giorno" }))),
+      el("th", { text: "Repository" }), el("th", { class: "num", text: "Views" }), el("th", { class: "num", text: "Unique visitors" }),
+      el("th", { class: "num", text: "Clones" }), el("th", { class: "num", text: "Unique cloners" }), el("th", { text: "Daily views" }))),
     el("tbody", {}, rows));
   const note = d.trafficDenied
-    ? el("p", { class: "small muted", text: `${d.trafficDenied} repository esclusi: permesso mancante.` })
+    ? el("p", { class: "small muted", text: `${d.trafficDenied} repositories skipped: missing permission.` })
     : null;
   box.replaceChildren(...[el("div", { class: "table-wrap" }, table), note].filter(Boolean));
 }
@@ -560,7 +564,7 @@ let repoState = { list: [], sort: "pushedAt", dir: "desc", filter: "" };
 function renderRepos(d) {
   repoState.list = d.repos.map((r) => ({
     name: r.nameWithOwner, url: r.url, description: r.description || "",
-    visibility: r.isPrivate ? "privato" : "pubblico", isPrivate: r.isPrivate, isFork: r.isFork, isArchived: r.isArchived,
+    visibility: r.isPrivate ? "private" : "public", isPrivate: r.isPrivate, isFork: r.isFork, isArchived: r.isArchived,
     language: r.primaryLanguage?.name || "", stars: r.stargazerCount, forks: r.forkCount, pushedAt: r.pushedAt || "",
   }));
   drawRepoTable();
@@ -573,7 +577,7 @@ function drawRepoTable() {
     .filter((r) => !f || r.name.toLowerCase().includes(f) || r.language.toLowerCase().includes(f) || r.description.toLowerCase().includes(f))
     .sort((a, b) => {
       const va = a[sort], vb = b[sort];
-      const c = typeof va === "number" ? va - vb : String(va).localeCompare(String(vb), "it");
+      const c = typeof va === "number" ? va - vb : String(va).localeCompare(String(vb), "en");
       return dir === "asc" ? c : -c;
     });
 
@@ -586,7 +590,7 @@ function drawRepoTable() {
     el("td", {},
       el("a", { href: r.url, target: "_blank", rel: "noopener", text: r.name, title: r.description || null }),
       r.isFork ? el("span", { class: "badge", style: "margin-left:6px", text: "fork" }) : null,
-      r.isArchived ? el("span", { class: "badge", style: "margin-left:6px", text: "archiviato" }) : null),
+      r.isArchived ? el("span", { class: "badge", style: "margin-left:6px", text: "archived" }) : null),
     el("td", {}, el("span", { class: `badge ${r.isPrivate ? "badge-private" : ""}`, text: r.visibility })),
     el("td", { text: r.language || "—" }),
     el("td", { class: "num", text: nf.format(r.stars) }),
@@ -609,6 +613,114 @@ document.querySelectorAll("#repoTable th[data-sort]").forEach((th) => {
 $("repoFilter").addEventListener("input", (e) => { repoState.filter = e.target.value; drawRepoTable(); });
 
 /* =========================================================
+   Card per il README
+   Salva sul Worker solo i numeri della card; l'SVG viene
+   servito da /card/<login>.svg e si può mettere in qualsiasi .md
+   ========================================================= */
+function workerBase() { return CFG.WORKER_URL.replace(/\/+$/, ""); }
+
+function cardPayload(d, s) {
+  return {
+    since: s.created.getFullYear(),
+    totalContributions: s.totals.all,
+    privateContributions: s.totals.restricted,
+    currentStreak: s.current,
+    longestStreak: s.longest,
+    commits: s.totals.commits,
+    pullRequests: d.profile.pullRequests.totalCount ?? s.totals.prs,
+    stars: s.starsReceived,
+    repos: d.totalRepoCount,
+    privateRepos: s.privateCount,
+    languages: s.topLangs.filter((l) => !l.other).slice(0, 5)
+      .map((l) => ({ name: l.name, pct: (l.size / s.langTotal) * 100, color: l.color })),
+  };
+}
+
+function setupCard(d, s) {
+  const login = d.profile.login;
+  const svgUrl = `${workerBase()}/card/${encodeURIComponent(login)}.svg`;
+  $("cardSnippetMd").value = `![${login}'s GitHub stats](${svgUrl})`;
+  $("cardSnippetHtml").value = [
+    "<picture>",
+    `  <source media="(prefers-color-scheme: dark)" srcset="${svgUrl}?theme=dark">`,
+    `  <img alt="${login}'s GitHub stats" src="${svgUrl}">`,
+    "</picture>",
+  ].join("\n");
+
+  const status = (text) => { $("cardStatus").textContent = text; };
+  function showPublished(updatedAt) {
+    const dark = document.documentElement.dataset.theme === "dark"
+      || (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
+    $("cardPreview").src = `${svgUrl}?${dark ? "theme=dark&" : ""}v=${Date.now()}`;
+    $("cardPublished").hidden = false;
+    $("btnCardDelete").hidden = false;
+    $("btnCardPublish").textContent = "Update card";
+    status(`Last updated ${df.format(new Date(updatedAt))}.`);
+  }
+  function showUnpublished() {
+    $("cardPublished").hidden = true;
+    $("btnCardDelete").hidden = true;
+    $("btnCardPublish").textContent = "Publish card";
+  }
+
+  async function call(method, body) {
+    const res = await fetch(`${workerBase()}/card`, {
+      method,
+      headers: { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const j = await res.json().catch(() => ({}));
+    if (res.status === 401) throw new Error("Session expired: please sign in again.");
+    if (!res.ok) throw new Error(`Something went wrong (${j.error || res.status}).`);
+    return j;
+  }
+
+  $("btnCardPublish").addEventListener("click", async () => {
+    $("btnCardPublish").disabled = true;
+    status("Publishing…");
+    try {
+      const r = await call("POST", cardPayload(d, s));
+      showPublished(r.updatedAt);
+      status(`${$("cardStatus").textContent} GitHub may take up to 30 minutes to show the new version.`);
+    } catch (e) {
+      status(e.message);
+    } finally {
+      $("btnCardPublish").disabled = false;
+    }
+  });
+
+  $("btnCardDelete").addEventListener("click", async () => {
+    if (!confirm("Remove your card? READMEs that use it will show an empty card.")) return;
+    $("btnCardDelete").disabled = true;
+    try {
+      await call("DELETE");
+      showUnpublished();
+      status("Card removed.");
+    } catch (e) {
+      status(e.message);
+    } finally {
+      $("btnCardDelete").disabled = false;
+    }
+  });
+
+  document.querySelectorAll("[data-copy]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const field = $(btn.dataset.copy);
+      try { await navigator.clipboard.writeText(field.value); }
+      catch { field.select(); document.execCommand("copy"); }
+      btn.textContent = "Copied!";
+      setTimeout(() => { btn.textContent = "Copy"; }, 1500);
+    });
+  });
+
+  // C'è già una card pubblicata?
+  fetch(`${workerBase()}/card/${encodeURIComponent(login)}.json`)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((c) => { if (c?.updatedAt) showPublished(c.updatedAt); })
+    .catch(() => {});
+}
+
+/* =========================================================
    Avvio
    ========================================================= */
 async function main() {
@@ -617,7 +729,7 @@ async function main() {
   if (CFG.APP_SLUG) $("btnInstall").href = `https://github.com/apps/${encodeURIComponent(CFG.APP_SLUG)}/installations/new`;
 
   if (!configOk()) {
-    $("configWarning").textContent = "Configurazione incompleta: imposta CLIENT_ID e WORKER_URL nel file config.js.";
+    $("configWarning").textContent = "Incomplete configuration: set CLIENT_ID and WORKER_URL in config.js.";
     $("configWarning").hidden = false;
     $("btnLogin").disabled = true;
     show("viewLogin");
@@ -648,6 +760,7 @@ async function main() {
     renderFacts(data, stats);
     renderTraffic(data);
     renderRepos(data);
+    setupCard(data, stats);
     show("viewDashboard");
   } catch (e) {
     console.error(e);
