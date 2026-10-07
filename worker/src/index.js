@@ -18,6 +18,8 @@
  *   CARDS                 (KV namespace)
  */
 
+import { buildCard } from "./stats.js";
+
 const LOGIN_RE = /^[a-z0-9](?:[a-z0-9-]{0,38})$/i;
 
 export default {
