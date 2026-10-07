@@ -5,6 +5,7 @@
 
 const GQL = "https://api.github.com/graphql";
 const MAX_REPO_PAGES = 10;
+const RECENT_DAYS = 53 * 7;
 
 async function gql(token, query, variables = {}) {
   const res = await fetch(GQL, {
@@ -91,6 +92,14 @@ export async function buildCard(token, timeZone) {
     }
   }
 
+  // Ultime 53 settimane giorno per giorno, per il mini calendario (l'ultimo valore è oggi)
+  const recent = [];
+  const end = new Date(`${todayStr}T00:00:00Z`);
+  for (let k = RECENT_DAYS - 1; k >= 0; k--) {
+    const d = new Date(end.getTime() - k * 864e5).toISOString().slice(0, 10);
+    recent.push(dayMap.get(d) || 0);
+  }
+
   // Streak (stessa logica del sito)
   const days = [...dayMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   let longest = 0, run = 0;
@@ -142,5 +151,7 @@ export async function buildCard(token, timeZone) {
     repos: repoCount,
     privateRepos: repos.filter((r) => r.isPrivate).length,
     languages,
+    recent,
+    recentEnd: todayStr,
   };
 }

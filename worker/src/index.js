@@ -184,6 +184,8 @@ function makeCard(stats, login, timeZone) {
       pct: Math.min(100, Math.max(0, l.pct)),
       color: /^#[0-9a-f]{6}$/i.test(l.color) ? l.color : null,
     })),
+    recent: (Array.isArray(stats.recent) ? stats.recent : []).slice(-371).map(int),
+    recentEnd: /^\d{4}-\d{2}-\d{2}$/.test(stats.recentEnd) ? stats.recentEnd : null,
     timeZone,
     updatedAt: new Date().toISOString(),
   };
@@ -258,6 +260,7 @@ function svgStyle(t) {
     .head { font-size: 13px; font-weight: 600; }
     .lang { font-size: 12px; }
     .foot { font-size: 10px; fill: ${t.muted}; }
+    .grade { font-size: 14px; font-weight: 700; fill: ${t.text}; }
   </style>`;
 }
 
@@ -269,7 +272,8 @@ function cardOptions(params) {
   const theme = params.get("theme") === "dark" ? "dark" : "light";
   const langs = LANG_STYLES.includes(params.get("langs")) ? params.get("langs") : "bar";
   const hide = new Set((params.get("hide") || "").split(",").map((s) => s.trim()).filter((s) => STAT_KEYS.includes(s)));
-  return { theme, langs, hide };
+  const on = (k) => ["true", "1", "yes"].includes((params.get(k) || "").toLowerCase());
+  return { theme, langs, hide, grade: on("grade"), calendar: on("calendar") };
 }
 
 function renderCard(c, opts) {
@@ -297,14 +301,18 @@ function renderCard(c, opts) {
 
   const langs = showLangs ? renderLangs(c.languages.slice(0, 5), opts.langs, t) : { svg: "", bottom: 0 };
 
-  // Altezza: la colonna più lunga + il piè di pagina
-  const H = Math.max(statsBottom, langs.bottom, 100) + 42;
+  // Sotto le colonne: il mini calendario (solo se la card ha i dati giorno per giorno)
+  const contentBottom = Math.max(statsBottom, langs.bottom, 100);
+  const cal = opts.calendar ? renderCalendar(c, W, contentBottom, t) : { svg: "", bottom: contentBottom };
+
+  // Altezza: fino al contenuto più in basso + il piè di pagina
+  const H = cal.bottom + 42;
 
   const updated = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", year: "numeric" }).format(new Date(c.updatedAt));
   // Card stretta (senza lingue): testi più corti
   const repos = opts.hide.has("repos") ? ""
     : showLangs ? `${fmt(c.repos)} repositories (${fmt(c.privateRepos)} private)` : `${fmt(c.repos)} repos`;
-  const maxName = showLangs ? 28 : 22;
+  const maxName = showLangs ? 28 : opts.grade ? 14 : 22;
   const name = c.name.length > maxName ? `${c.name.slice(0, maxName - 1)}…` : c.name;
   const title = showLangs ? `${name}'s GitHub stats` : name;
   const foot = `<text x="25" y="${H - 16}" class="foot">${esc(repos)}</text>`
@@ -317,8 +325,68 @@ function renderCard(c, opts) {
   <text x="25" y="36" class="title">${esc(title)}</text>
   ${stats}
   ${langs.svg}
+  ${opts.grade ? renderGrade(c, W, t) : ""}
+  ${cal.svg}
   ${foot}
 </svg>`;
+}
+
+/* Voto: media pesata di alcuni numeri, ognuno schiacciato tra 0 e 1 con 1 - e^(-x/m).
+   m è il valore "tipico": chi ce l'ha prende circa 0,63 su quella voce.
+   I pesi e i valori tipici sono una scelta, non una verità: cambiali qui. */
+const GRADE_PARTS = [
+  { key: "totalContributions", m: 500, w: 3 },
+  { key: "longestStreak", m: 14, w: 2 },
+  { key: "stars", m: 20, w: 1 },
+  { key: "pullRequests", m: 20, w: 1 },
+];
+const GRADE_STEPS = [[0.85, "S"], [0.75, "A+"], [0.62, "A"], [0.5, "B+"], [0.37, "B"], [0.25, "C+"], [0, "C"]];
+
+function gradeOf(c) {
+  const wsum = GRADE_PARTS.reduce((a, p) => a + p.w, 0);
+  const score = GRADE_PARTS.reduce((a, p) => a + p.w * (1 - Math.exp(-(Number(c[p.key]) || 0) / p.m)), 0) / wsum;
+  return { score, letter: GRADE_STEPS.find(([min]) => score >= min)[1] };
+}
+
+// Anello in alto a destra: si riempie in base al punteggio, con la lettera al centro
+function renderGrade(c, W, t) {
+  const { score, letter } = gradeOf(c);
+  const cx = W - 44, cy = 36, r = 17;
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${t.track}" stroke-width="4"/>`
+    + `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${t.accent}" stroke-width="4" stroke-linecap="round" pathLength="100"`
+    + ` stroke-dasharray="${(score * 100).toFixed(1)} 100" transform="rotate(-90 ${cx} ${cy})"/>`
+    + `<text x="${cx}" y="${cy + 5}" class="grade" text-anchor="middle">${letter}</text>`;
+}
+
+// Mini calendario: le ultime settimane che stanno nella larghezza, colonne = settimane, righe = giorni (dom-sab)
+function renderCalendar(c, W, top, t) {
+  const recent = Array.isArray(c.recent) ? c.recent : [];
+  if (!recent.length || !c.recentEnd) return { svg: "", bottom: top }; // card vecchia: serve un "Update card"
+
+  const cell = 8, step = 10;
+  const weeks = Math.floor((W - 50 + (step - cell)) / step);
+  const lastWd = new Date(`${c.recentEnd}T00:00:00Z`).getUTCDay();
+  const n = Math.min(recent.length, (weeks - 1) * 7 + lastWd + 1);
+  const days = recent.slice(-n);
+  const max = Math.max(...days, 1);
+
+  const headY = top + 30, gridY = headY + 10;
+  // Il primo giorno mostrato cade nella riga del suo giorno della settimana
+  const firstWd = (lastWd - (n - 1) % 7 + 7) % 7;
+  const cells = days.map((v, i) => {
+    const pos = firstWd + i;
+    const x = 25 + Math.floor(pos / 7) * step, y = gridY + (pos % 7) * step;
+    const level = v === 0 ? 0 : Math.ceil((v / max) * 4);
+    const fill = level === 0 ? `fill="${t.track}"` : `fill="${t.accent}" fill-opacity="${[0, 0.3, 0.55, 0.8, 1][level]}"`;
+    return `<rect x="${x}" y="${y}" width="${cell}" height="${cell}" rx="2" ${fill}/>`;
+  }).join("");
+
+  const total = days.reduce((a, v) => a + v, 0);
+  return {
+    svg: `<text x="25" y="${headY}" class="head">Last ${Math.ceil((firstWd + n) / 7)} weeks</text>`
+      + `<text x="${W - 25}" y="${headY}" class="label" text-anchor="end">${fmt(total)} contributions</text>${cells}`,
+    bottom: gridY + 7 * step - (step - cell),
+  };
 }
 
 // Colonna destra delle lingue: barra, ciambella o torta. Restituisce lo SVG e dove finisce in basso.

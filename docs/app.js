@@ -632,11 +632,13 @@ function setupCard(d, s) {
   // Stile della card: va tutto nell'URL (?langs=donut&hide=prs,stars&theme=dark)
   const OPTS_KEY = "ghs_card_opts";
   const statBoxes = [...document.querySelectorAll("[data-stat]")];
+  const extraBoxes = [...document.querySelectorAll("[data-extra]")];
   function cardUrl(theme, extra = {}) {
     const p = new URLSearchParams();
     if ($("optLangs").value !== "bar") p.set("langs", $("optLangs").value);
     const hide = statBoxes.filter((b) => !b.checked).map((b) => b.dataset.stat);
     if (hide.length) p.set("hide", hide.join(","));
+    for (const b of extraBoxes) if (b.checked) p.set(b.dataset.extra, "true");
     if (theme === "dark") p.set("theme", "dark");
     for (const [k, v] of Object.entries(extra)) p.set(k, v);
     const q = p.toString().replace(/%2C/g, ",");
@@ -663,6 +665,7 @@ function setupCard(d, s) {
     try {
       localStorage.setItem(OPTS_KEY, JSON.stringify({
         langs: $("optLangs").value, theme, hide: statBoxes.filter((b) => !b.checked).map((b) => b.dataset.stat),
+        extras: extraBoxes.filter((b) => b.checked).map((b) => b.dataset.extra),
       }));
     } catch {}
   }
@@ -673,9 +676,10 @@ function setupCard(d, s) {
       if ([...$("optLangs").options].some((o) => o.value === saved.langs)) $("optLangs").value = saved.langs;
       if ([...$("optTheme").options].some((o) => o.value === saved.theme)) $("optTheme").value = saved.theme;
       for (const b of statBoxes) b.checked = !(saved.hide || []).includes(b.dataset.stat);
+      for (const b of extraBoxes) b.checked = (saved.extras || []).includes(b.dataset.extra);
     }
   } catch {}
-  for (const el of [$("optLangs"), $("optTheme"), ...statBoxes]) el.addEventListener("change", refreshCard);
+  for (const el of [$("optLangs"), $("optTheme"), ...statBoxes, ...extraBoxes]) el.addEventListener("change", refreshCard);
   refreshCard();
 
   const status = (text) => { $("cardStatus").textContent = text; };

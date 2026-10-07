@@ -56,6 +56,43 @@ If you want the card to switch to dark mode when the reader uses GitHub's dark t
 
 You can also change how the card looks: on the site, under the card, choose how to show your languages (bar, donut, pie or hidden), the theme and which numbers to show. The preview updates as you go and the link to copy changes with it. The same options work in the link by hand, for example `?langs=donut&hide=private,prs`.
 
+#### Card options
+
+Add the options at the end of the card link, after `.svg`. The first one starts with `?`, the others are joined with `&`:
+
+```md
+![My GitHub stats](https://github-stats-auth.lorenzo-pallotta99.workers.dev/card/YOUR-USERNAME.svg?langs=donut&hide=private,prs&theme=dark)
+```
+
+| Option | Values | What it does |
+|---|---|---|
+| `langs` | `bar` (default), `donut`, `pie`, `hide` | How your top languages are shown. With `hide` the card has no languages column and gets narrower. |
+| `hide` | one or more of `contributions`, `private`, `streak`, `longest`, `commits`, `prs`, `stars`, `repos`, separated by commas | Which numbers to leave out. The card gets shorter to fit. |
+| `theme` | `light` (default), `dark` | Light or dark colors. |
+| `grade` | `true` | Adds a grade (from C to S) in the top right corner. See below how it is calculated. |
+| `calendar` | `true` | Adds a small contribution calendar of the last weeks at the bottom. |
+
+What each `hide` value removes:
+
+| Value | Removes |
+|---|---|
+| `contributions` | Total contributions |
+| `private` | Private contributions |
+| `streak` | Current streak |
+| `longest` | Longest streak |
+| `commits` | Commits |
+| `prs` | Pull requests |
+| `stars` | Stars earned |
+| `repos` | The repository count at the bottom |
+
+Options you leave out keep their default, and unknown values are ignored.
+
+**How the grade works.** It is a weighted mix of your total contributions (weight 3), longest streak (weight 2), stars (1) and pull requests (1). Each number is compared with a typical value (500 contributions, a 14-day streak, 20 stars, 20 pull requests): reaching the typical value gives you about two thirds of the points for that item, and going beyond it gives less and less extra. The result goes from 0 to 1 and becomes a letter: C, C+ (from 0.25), B (0.37), B+ (0.5), A (0.62), A+ (0.75), S (0.85). The ring around the letter shows the exact score. It's just for fun, not an official ranking.
+
+**Calendar on an older card.** If you published the card before the calendar existed, click **Update card** once (or wait for the next auto-update), otherwise the calendar stays hidden.
+
+#### Keeping it up to date
+
 To keep the card up to date you have two options:
 
 - **Update card**: come back to the site and click it whenever you want fresh numbers.
@@ -158,6 +195,43 @@ La riga è fatta così:
 Se vuoi che la card passi al tema scuro quando chi la guarda usa GitHub in dark mode, usa la versione HTML che trovi sul sito. Puoi anche aggiungere `?theme=dark` al link per avere sempre la versione scura.
 
 Puoi anche cambiare l'aspetto della card: sul sito, sotto la card, scegli come mostrare i linguaggi (barra, ciambella, torta o nascosti), il tema e quali numeri far vedere. L'anteprima si aggiorna subito e il link da copiare cambia di conseguenza. Le stesse opzioni funzionano anche scritte a mano nel link, per esempio `?langs=donut&hide=private,prs`.
+
+#### Opzioni della card
+
+Aggiungi le opzioni in fondo al link della card, dopo `.svg`. La prima inizia con `?`, le altre si uniscono con `&`:
+
+```md
+![Le mie statistiche GitHub](https://github-stats-auth.lorenzo-pallotta99.workers.dev/card/YOUR-USERNAME.svg?langs=donut&hide=private,prs&theme=dark)
+```
+
+| Opzione | Valori | Cosa fa |
+|---|---|---|
+| `langs` | `bar` (predefinito), `donut`, `pie`, `hide` | Come vengono mostrati i linguaggi più usati. Con `hide` la card non ha la colonna dei linguaggi e diventa più stretta. |
+| `hide` | uno o più tra `contributions`, `private`, `streak`, `longest`, `commits`, `prs`, `stars`, `repos`, separati da virgole | Quali numeri togliere. La card si accorcia di conseguenza. |
+| `theme` | `light` (predefinito), `dark` | Colori chiari o scuri. |
+| `grade` | `true` | Aggiunge un voto (da C a S) in alto a destra. Sotto trovi come viene calcolato. |
+| `calendar` | `true` | Aggiunge in basso un piccolo calendario dei contributi delle ultime settimane. |
+
+Cosa toglie ogni valore di `hide`:
+
+| Valore | Toglie |
+|---|---|
+| `contributions` | Contributi totali |
+| `private` | Contributi privati |
+| `streak` | Streak attuale |
+| `longest` | Streak più lunga |
+| `commits` | Commit |
+| `prs` | Pull request |
+| `stars` | Stelle ricevute |
+| `repos` | Il numero di repository in basso |
+
+Le opzioni che non scrivi restano ai valori predefiniti, e i valori sconosciuti vengono ignorati.
+
+**Come si calcola il voto.** È una media pesata dei contributi totali (peso 3), della streak più lunga (peso 2), delle stelle (1) e delle pull request (1). Ogni numero viene confrontato con un valore tipico (500 contributi, una streak di 14 giorni, 20 stelle, 20 pull request): arrivare al valore tipico dà circa due terzi dei punti di quella voce, e andare oltre aggiunge sempre meno. Il risultato va da 0 a 1 e diventa una lettera: C, C+ (da 0,25), B (0,37), B+ (0,5), A (0,62), A+ (0,75), S (0,85). L'anello intorno alla lettera mostra il punteggio esatto. È solo per divertimento, non una classifica ufficiale.
+
+**Calendario su una card vecchia.** Se hai pubblicato la card prima che esistesse il calendario, clicca una volta **Update card** (o aspetta il prossimo aggiornamento automatico), altrimenti il calendario non compare.
+
+#### Tenerla aggiornata
 
 Per tenere la card aggiornata hai due possibilità:
 
