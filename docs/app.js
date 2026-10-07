@@ -625,13 +625,13 @@ $("repoFilter").addEventListener("input", (e) => { repoState.filter = e.target.v
 function workerBase() { return CFG.WORKER_URL.replace(/\/+$/, ""); }
 
 function setupCard(d, s) {
-  const login = d.profile.login;
-  const svgUrl = `${workerBase()}/card/${encodeURIComponent(login)}.svg`;
-  $("cardSnippetMd").value = `![${login}'s GitHub stats](${svgUrl})`;
+  const user = d.profile.login;
+  const svgUrl = `${workerBase()}/card/${encodeURIComponent(user)}.svg`;
+  $("cardSnippetMd").value = `![${user}'s GitHub stats](${svgUrl})`;
   $("cardSnippetHtml").value = [
     "<picture>",
     `  <source media="(prefers-color-scheme: dark)" srcset="${svgUrl}?theme=dark">`,
-    `  <img alt="${login}'s GitHub stats" src="${svgUrl}">`,
+    `  <img alt="${user}'s GitHub stats" src="${svgUrl}">`,
     "</picture>",
   ].join("\n");
 
@@ -721,7 +721,7 @@ function setupCard(d, s) {
   });
 
   // C'è già una card pubblicata?
-  fetch(`${workerBase()}/card/${encodeURIComponent(login)}.json`)
+  fetch(`${workerBase()}/card/${encodeURIComponent(user)}.json`)
     .then((r) => (r.ok ? r.json() : null))
     .then((c) => { if (c?.updatedAt) { showPublished(c.updatedAt); showAuto(!!c.autoUpdate); } })
     .catch(() => {});
