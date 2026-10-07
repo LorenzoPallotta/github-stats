@@ -19,6 +19,7 @@
  */
 
 import { buildCard } from "./stats.js";
+import { seal } from "./crypto.js";
 
 const LOGIN_RE = /^[a-z0-9](?:[a-z0-9-]{0,38})$/i;
 
@@ -51,6 +52,7 @@ export default {
     if (url.pathname === "/" && request.method === "POST") return exchangeCode(request, env, cors);
     if (url.pathname === "/card" && request.method === "POST") return saveCard(request, env, cors);
     if (url.pathname === "/card" && request.method === "DELETE") return deleteCard(request, env, cors);
+    if (url.pathname === "/card/auto" && request.method === "DELETE") return disableAuto(request, env, cors);
 
     return json({ error: "not_found" }, 404, cors);
   },
@@ -58,9 +60,9 @@ export default {
 
 /* ---------- Login ---------- */
 async function exchangeCode(request, env, cors) {
-  let code;
+  let code, keep, timeZone;
   try {
-    ({ code } = await request.json());
+    ({ code, keep, timeZone } = await request.json());
   } catch {
     return json({ error: "bad_request" }, 400, cors);
   }
@@ -88,8 +90,27 @@ async function exchangeCode(request, env, cors) {
     return json({ error: data.error || "exchange_failed", error_description: data.error_description || "" }, 400, cors);
   }
 
+  // Aggiornamento automatico: solo se l'utente l'ha chiesto. Il refresh token resta qui, cifrato.
+  let autoUpdate = false;
+  if (keep === true && data.refresh_token) {
+    // Se qualcosa va storto (es. TOKEN_KEY mancante) il login funziona lo stesso, senza auto-update
+    try {
+      const user = await whoAmIToken(data.access_token);
+      if (user) {
+        await env.CARDS.put(`auth:${user.login.toLowerCase()}`, JSON.stringify({
+          ...(await seal(env, data.refresh_token)),
+          timeZone: str(timeZone, 64) || "UTC",
+          nextRun: Date.now() + 24 * 3600e3,
+        }));
+        autoUpdate = true;
+      }
+    } catch (e) {
+      console.error("auto-update:", e.message);
+    }
+  }
+
   // Al browser serve solo il token e la sua durata.
-  return json({ access_token: data.access_token, expires_in: data.expires_in || null }, 200, cors);
+  return json({ access_token: data.access_token, expires_in: data.expires_in || null, autoUpdate }, 200, cors);
 }
 
 /* ---------- Card: scrittura ---------- */
@@ -98,9 +119,13 @@ async function exchangeCode(request, env, cors) {
 async function whoAmI(request) {
   const auth = request.headers.get("Authorization") || "";
   if (!/^Bearer [\w.-]{20,255}$/.test(auth)) return null;
+  return whoAmIToken(auth.slice(7));
+}
+
+async function whoAmIToken(token) {
   const res = await fetch("https://api.github.com/user", {
     headers: {
-      Authorization: auth,
+      Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
       "User-Agent": "github-stats-auth-worker",
     },
@@ -109,6 +134,7 @@ async function whoAmI(request) {
   const u = await res.json().catch(() => null);
   return u && typeof u.login === "string" && LOGIN_RE.test(u.login) ? u : null;
 }
+
 
 async function saveCard(request, env, cors) {
   const user = await whoAmI(request);
@@ -150,6 +176,14 @@ async function deleteCard(request, env, cors) {
   const user = await whoAmI(request);
   if (!user) return json({ error: "unauthorized" }, 401, cors);
   await env.CARDS.delete(`card:${user.login.toLowerCase()}`);
+  await env.CARDS.delete(`auth:${user.login.toLowerCase()}`);
+  return json({ ok: true }, 200, cors);
+}
+
+async function disableAuto(request, env, cors) {
+  const user = await whoAmI(request);
+  if (!user) return json({ error: "unauthorized" }, 401, cors);
+  await env.CARDS.delete(`auth:${user.login.toLowerCase()}`);
   return json({ ok: true }, 200, cors);
 }
 
@@ -166,7 +200,8 @@ async function serveCard(env, login, ext, theme) {
   const card = LOGIN_RE.test(login) ? await env.CARDS.get(`card:${login.toLowerCase()}`, "json") : null;
 
   if (ext === "json") {
-    return json(card || { error: "not_found" }, card ? 200 : 404, {
+    const autoUpdate = card ? (await env.CARDS.get(`auth:${login.toLowerCase()}`)) !== null : false;
+    return json(card ? { ...card, autoUpdate } : { error: "not_found" }, card ? 200 : 404, {
       "Access-Control-Allow-Origin": "*",
       "Cache-Control": "no-store",
     });

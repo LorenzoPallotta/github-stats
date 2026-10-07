@@ -133,9 +133,14 @@ async function handleCallback() {
   const res = await fetch(CFG.WORKER_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({
+      code,
+      keep: sessionStorage.getItem("ghs_auto") === "1",
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    }),
   });
   const data = await res.json().catch(() => ({}));
+  sessionStorage.removeItem("ghs_auto");
   if (!res.ok || !data.access_token) {
     throw new Error(`Sign-in failed (${data.error_description || data.error || res.status}).`);
   }
@@ -619,23 +624,6 @@ $("repoFilter").addEventListener("input", (e) => { repoState.filter = e.target.v
    ========================================================= */
 function workerBase() { return CFG.WORKER_URL.replace(/\/+$/, ""); }
 
-function cardPayload(d, s) {
-  return {
-    since: s.created.getFullYear(),
-    totalContributions: s.totals.all,
-    privateContributions: s.totals.restricted,
-    currentStreak: s.current,
-    longestStreak: s.longest,
-    commits: s.totals.commits,
-    pullRequests: d.profile.pullRequests.totalCount ?? s.totals.prs,
-    stars: s.starsReceived,
-    repos: d.totalRepoCount,
-    privateRepos: s.privateCount,
-    languages: s.topLangs.filter((l) => !l.other).slice(0, 5)
-      .map((l) => ({ name: l.name, pct: (l.size / s.langTotal) * 100, color: l.color })),
-  };
-}
-
 function setupCard(d, s) {
   const login = d.profile.login;
   const svgUrl = `${workerBase()}/card/${encodeURIComponent(login)}.svg`;
@@ -657,15 +645,21 @@ function setupCard(d, s) {
     $("btnCardPublish").textContent = "Update card";
     status(`Last updated ${df.format(new Date(updatedAt))}.`);
   }
+  function showAuto(on) {
+    $("btnCardAuto").hidden = false;
+    $("btnCardAuto").textContent = on ? "Turn off auto-update" : "Turn on auto-update";
+    $("btnCardAuto").dataset.on = on ? "1" : "";
+  }
   function showUnpublished() {
     $("cardPublished").hidden = true;
     $("btnCardDelete").hidden = true;
     $("btnCardPublish").textContent = "Publish card";
   }
-
+  $("btnCardAuto").hidden = true;
   async function call(method, body) {
-    const res = await fetch(`${workerBase()}/card`, {
-      method,
+    const auto = method === "DELETE_AUTO";
+    const res = await fetch(`${workerBase()}/card${auto ? "/auto" : ""}`, {
+      method: auto ? "DELETE" : method,
       headers: { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
     });
@@ -681,6 +675,7 @@ function setupCard(d, s) {
     try {
       const r = await call("POST", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
       showPublished(r.updatedAt);
+      if ($("btnCardAuto").hidden) showAuto(false);
       status(`${$("cardStatus").textContent} GitHub may take up to 30 minutes to show the new version.`);
     } catch (e) {
       status(e.message);
@@ -695,12 +690,24 @@ function setupCard(d, s) {
     try {
       await call("DELETE");
       showUnpublished();
+      $("btnCardAuto").hidden = true;
       status("Card removed.");
     } catch (e) {
       status(e.message);
     } finally {
       $("btnCardDelete").disabled = false;
     }
+  });
+
+  $("btnCardAuto").addEventListener("click", async () => {
+    if ($("btnCardAuto").dataset.on) {
+      try { await call("DELETE_AUTO"); showAuto(false); status("Auto-update turned off."); }
+      catch (e) { status(e.message); }
+      return;
+    }
+    // Serve un nuovo login: è lì che il worker riceve il refresh token
+    sessionStorage.setItem("ghs_auto", "1");
+    login();
   });
 
   document.querySelectorAll("[data-copy]").forEach((btn) => {
@@ -716,7 +723,7 @@ function setupCard(d, s) {
   // C'è già una card pubblicata?
   fetch(`${workerBase()}/card/${encodeURIComponent(login)}.json`)
     .then((r) => (r.ok ? r.json() : null))
-    .then((c) => { if (c?.updatedAt) showPublished(c.updatedAt); })
+    .then((c) => { if (c?.updatedAt) { showPublished(c.updatedAt); showAuto(!!c.autoUpdate); } })
     .catch(() => {});
 }
 
