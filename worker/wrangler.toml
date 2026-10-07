@@ -17,4 +17,4 @@ binding = "CARDS"
 id = "4684d987ba0449f8b0a608cef5ef4ff8"
 
 [triggers]
-crons = ["0 * * * *"]
+crons = ["*/10 * * * *"]

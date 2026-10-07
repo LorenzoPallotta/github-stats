@@ -134,6 +134,8 @@ You can take back access whenever you want from your GitHub settings:
 - **"Session expired"**: sign in again.
 - **Traffic section is empty**: GitHub only shares traffic for repositories you own or can write to, and only for the last 14 days.
 - **Organization repositories missing**: the app has to be installed on the organization too, and an organization admin may need to approve it.
+- **Languages I don’t use show up on the card**: the languages count every repository the app can see, including organization repositories and those where you are a collaborator (forks excluded). Stars, instead, only count repositories you own. To leave some repositories out, deselect them under **Choose repositories**.
+- **"You just updated the card" when updating it**: you can update it at most once a minute.
 - **Auto-update turned itself off**: this happens if you revoked or uninstalled the app on GitHub. Sign in and click **Turn on auto-update** again.
 
 <p align="right"><a href="#github-stats">Back to top ↑</a></p>
@@ -270,6 +272,8 @@ Puoi revocare l'accesso quando vuoi dalle impostazioni di GitHub:
 - **"Session expired"**: rifai l'accesso.
 - **La sezione Traffic è vuota**: GitHub mostra il traffico solo dei repository tuoi o su cui puoi scrivere, e solo degli ultimi 14 giorni.
 - **Mancano i repository di un'organizzazione**: l'app va installata anche sull'organizzazione, e potrebbe servire l'approvazione di un amministratore.
+- **Sulla card compaiono linguaggi che non uso**: i linguaggi contano tutti i repository che l'app vede, compresi quelli delle organizzazioni e quelli dove sei collaboratore (fork esclusi). Le stelle invece contano solo i repository tuoi. Per escluderne alcuni, deselezionali da **Choose repositories**.
+- **"You just updated the card" quando la aggiorni**: puoi aggiornarla al massimo una volta al minuto.
 - **L'aggiornamento automatico si è spento da solo**: succede se hai revocato o disinstallato l'app su GitHub. Accedi di nuovo e clicca **Turn on auto-update**.
 
 <p align="right"><a href="#github-stats">Torna su ↑</a></p>

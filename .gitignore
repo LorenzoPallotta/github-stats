@@ -1,0 +1,16 @@
+# Cache e stato locale di wrangler (contiene anche l'account ID di Cloudflare)
+.wrangler/
+**/.wrangler/
+
+# Dipendenze
+node_modules/
+
+# File temporanei usati per modificare il KV a mano (contengono token cifrati)
+*.tmp.json
+
+# Variabili locali per `wrangler dev`
+.dev.vars
+
+# Sistema
+.DS_Store
+Thumbs.db

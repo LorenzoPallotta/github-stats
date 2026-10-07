@@ -62,6 +62,31 @@ function todayIn(timeZone) {
   }
 }
 
+// Ultime 53 settimane giorno per giorno, per il mini calendario (l'ultimo valore è oggi)
+export function recentDays(dayMap, todayStr, n = RECENT_DAYS) {
+  const recent = [];
+  const end = new Date(`${todayStr}T00:00:00Z`);
+  for (let k = n - 1; k >= 0; k--) {
+    const d = new Date(end.getTime() - k * 864e5).toISOString().slice(0, 10);
+    recent.push(dayMap.get(d) || 0);
+  }
+  return recent;
+}
+
+// Streak (stessa logica del sito). dayMap: "YYYY-MM-DD" -> contributi
+export function computeStreaks(dayMap, todayStr) {
+  const days = [...dayMap.entries()].filter(([d]) => d <= todayStr).sort((a, b) => a[0].localeCompare(b[0]));
+  let longest = 0, run = 0;
+  for (const [, n] of days) {
+    if (n > 0) { run++; if (run > longest) longest = run; } else run = 0;
+  }
+  let i = days.length - 1;
+  if (i >= 0 && days[i][0] === todayStr && days[i][1] === 0) i--; // oggi non è ancora finito
+  let current = 0;
+  while (i >= 0 && days[i][1] > 0) { current++; i--; }
+  return { current, longest };
+}
+
 export async function buildCard(token, timeZone) {
   const nowIso = new Date().toISOString();
   const profile = (await gql(token, Q_PROFILE)).viewer;
@@ -76,7 +101,7 @@ export async function buildCard(token, timeZone) {
   const years = [...profile.contributionsCollection.contributionYears].sort((a, b) => a - b);
   const todayStr = todayIn(timeZone);
   const dayMap = new Map();
-  let total = 0, restricted = 0, commits = 0, prsFromCalendar = 0;
+  let total = 0, restricted = 0, commits = 0;
   for (let i = 0; i < years.length; i += 3) {
     const chunk = years.slice(i, i + 3);
     const data = (await gql(token, yearsQuery(chunk, nowIso))).viewer;
@@ -92,24 +117,8 @@ export async function buildCard(token, timeZone) {
     }
   }
 
-  // Ultime 53 settimane giorno per giorno, per il mini calendario (l'ultimo valore è oggi)
-  const recent = [];
-  const end = new Date(`${todayStr}T00:00:00Z`);
-  for (let k = RECENT_DAYS - 1; k >= 0; k--) {
-    const d = new Date(end.getTime() - k * 864e5).toISOString().slice(0, 10);
-    recent.push(dayMap.get(d) || 0);
-  }
-
-  // Streak (stessa logica del sito)
-  const days = [...dayMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  let longest = 0, run = 0;
-  for (const [, n] of days) {
-    if (n > 0) { run++; if (run > longest) longest = run; } else run = 0;
-  }
-  let i = days.length - 1;
-  if (i >= 0 && days[i][0] === todayStr && days[i][1] === 0) i--; // oggi non è ancora finito
-  let current = 0;
-  while (i >= 0 && days[i][1] > 0) { current++; i--; }
+  const recent = recentDays(dayMap, todayStr);
+  const { current, longest } = computeStreaks(dayMap, todayStr);
 
   // Repository
   const repos = [];
@@ -146,7 +155,7 @@ export async function buildCard(token, timeZone) {
     currentStreak: current,
     longestStreak: longest,
     commits,
-    pullRequests: pullRequests ?? 0,
+    pullRequests, // null se GitHub non l'ha dato: la card nasconde la riga
     stars: own.reduce((s, r) => s + r.stargazerCount, 0),
     repos: repoCount,
     privateRepos: repos.filter((r) => r.isPrivate).length,

@@ -126,8 +126,11 @@ async function handleCallback() {
   sessionStorage.removeItem(STATE_KEY);
   history.replaceState(null, "", redirectUri()); // toglie ?code dall'indirizzo
 
-  // Se l'accesso arriva dall'installazione dell'app non c'è "state": va bene lo stesso.
-  if (state && state !== expected) throw new Error("Security check failed (state). Please sign in again.");
+  // Lo state deve sempre coincidere (protegge da CSRF sul login). Unica eccezione: il ritorno
+  // dall'installazione dell'app (o dal cambio dei repository), dove GitHub non manda state
+  // ma aggiunge setup_action=install oppure setup_action=update.
+  const fromInstall = !state && ["install", "update"].includes(params.get("setup_action"));
+  if (!fromInstall && (!state || state !== expected)) throw new Error("Security check failed (state). Please sign in again.");
 
   setLoading("Completing sign-in…");
   const res = await fetch(CFG.WORKER_URL, {
@@ -711,6 +714,7 @@ function setupCard(d, s) {
     });
     const j = await res.json().catch(() => ({}));
     if (res.status === 401) throw new Error("Session expired: please sign in again.");
+    if (res.status === 429) throw new Error("You just updated the card: please wait a minute and try again.");
     if (!res.ok) throw new Error(`Something went wrong (${j.error || res.status}).`);
     return j;
   }
