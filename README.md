@@ -87,10 +87,6 @@ What each `hide` value removes:
 
 Options you leave out keep their default, and unknown values are ignored.
 
-**How the grade works.** It is a weighted mix of your total contributions (weight 3), longest streak (weight 2), stars (1) and pull requests (1). Each number is compared with a typical value (500 contributions, a 14-day streak, 20 stars, 20 pull requests): reaching the typical value gives you about two thirds of the points for that item, and going beyond it gives less and less extra. The result goes from 0 to 1 and becomes a letter: C, C+ (from 0.25), B (0.37), B+ (0.5), A (0.62), A+ (0.75), S (0.85). The ring around the letter shows the exact score. It's just for fun, not an official ranking.
-
-**Calendar on an older card.** If you published the card before the calendar existed, click **Update card** once (or wait for the next auto-update), otherwise the calendar stays hidden.
-
 #### Keeping it up to date
 
 To keep the card up to date you have two options:
@@ -226,10 +222,6 @@ Cosa toglie ogni valore di `hide`:
 | `repos` | Il numero di repository in basso |
 
 Le opzioni che non scrivi restano ai valori predefiniti, e i valori sconosciuti vengono ignorati.
-
-**Come si calcola il voto.** È una media pesata dei contributi totali (peso 3), della streak più lunga (peso 2), delle stelle (1) e delle pull request (1). Ogni numero viene confrontato con un valore tipico (500 contributi, una streak di 14 giorni, 20 stelle, 20 pull request): arrivare al valore tipico dà circa due terzi dei punti di quella voce, e andare oltre aggiunge sempre meno. Il risultato va da 0 a 1 e diventa una lettera: C, C+ (da 0,25), B (0,37), B+ (0,5), A (0,62), A+ (0,75), S (0,85). L'anello intorno alla lettera mostra il punteggio esatto. È solo per divertimento, non una classifica ufficiale.
-
-**Calendario su una card vecchia.** Se hai pubblicato la card prima che esistesse il calendario, clicca una volta **Update card** (o aspetta il prossimo aggiornamento automatico), altrimenti il calendario non compare.
 
 #### Tenerla aggiornata
 
