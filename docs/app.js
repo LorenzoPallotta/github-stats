@@ -679,7 +679,7 @@ function setupCard(d, s) {
     $("btnCardPublish").disabled = true;
     status("Publishing…");
     try {
-      const r = await call("POST", cardPayload(d, s));
+      const r = await call("POST", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
       showPublished(r.updatedAt);
       status(`${$("cardStatus").textContent} GitHub may take up to 30 minutes to show the new version.`);
     } catch (e) {

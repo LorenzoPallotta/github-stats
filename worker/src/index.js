@@ -112,37 +112,37 @@ async function saveCard(request, env, cors) {
   const user = await whoAmI(request);
   if (!user) return json({ error: "unauthorized" }, 401, cors);
 
-  let body;
+  let body = {};
+  try { body = await request.json(); } catch {}
+  const timeZone = str(body.timeZone, 64) || "UTC";
+
+  // I numeri li calcola il worker: il browser manda solo il fuso orario
+  const token = (request.headers.get("Authorization") || "").slice(7);
+  let stats;
   try {
-    body = await request.json();
-  } catch {
-    return json({ error: "bad_request" }, 400, cors);
+    stats = await buildCard(token, timeZone);
+  } catch (e) {
+    console.error("buildCard:", e.message);
+    return json({ error: "stats_failed" }, 502, cors);
   }
 
   const card = {
+    ...stats,
     login: user.login,
-    name: str(user.name, 60) || user.login,
-    since: int(body.since) || null,
-    totalContributions: int(body.totalContributions),
-    privateContributions: int(body.privateContributions),
-    currentStreak: int(body.currentStreak),
-    longestStreak: int(body.longestStreak),
-    commits: int(body.commits),
-    pullRequests: int(body.pullRequests),
-    stars: int(body.stars),
-    repos: int(body.repos),
-    privateRepos: int(body.privateRepos),
-    languages: (Array.isArray(body.languages) ? body.languages : []).slice(0, 6).map((l) => ({
-      name: str(l?.name, 30),
-      pct: Math.min(100, Math.max(0, Number(l?.pct) || 0)),
-      color: /^#[0-9a-f]{6}$/i.test(l?.color) ? l.color : null,
-    })).filter((l) => l.name),
+    name: str(stats.name, 60) || user.login,
+    languages: stats.languages.map((l) => ({
+      name: str(l.name, 30),
+      pct: Math.min(100, Math.max(0, l.pct)),
+      color: /^#[0-9a-f]{6}$/i.test(l.color) ? l.color : null,
+    })),
+    timeZone,
     updatedAt: new Date().toISOString(),
   };
 
   await env.CARDS.put(`card:${user.login.toLowerCase()}`, JSON.stringify(card));
   return json({ ok: true, login: user.login, updatedAt: card.updatedAt }, 200, cors);
 }
+
 
 async function deleteCard(request, env, cors) {
   const user = await whoAmI(request);
