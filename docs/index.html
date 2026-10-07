@@ -129,8 +129,36 @@
           <span id="cardStatus" class="small muted" role="status"></span>
         </div>
         <div id="cardPublished" hidden>
+          <div class="card-options">
+            <label class="small">Languages
+              <select id="optLangs">
+                <option value="bar">Bar</option>
+                <option value="donut">Donut</option>
+                <option value="pie">Pie</option>
+                <option value="hide">Hidden</option>
+              </select>
+            </label>
+            <label class="small">Theme
+              <select id="optTheme">
+                <option value="auto">Follow reader (HTML only)</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </label>
+            <fieldset class="small">
+              <legend>Show</legend>
+              <label><input type="checkbox" data-stat="contributions" checked> Total contributions</label>
+              <label><input type="checkbox" data-stat="private" checked> Private contributions</label>
+              <label><input type="checkbox" data-stat="streak" checked> Current streak</label>
+              <label><input type="checkbox" data-stat="longest" checked> Longest streak</label>
+              <label><input type="checkbox" data-stat="commits" checked> Commits</label>
+              <label><input type="checkbox" data-stat="prs" checked> Pull requests</label>
+              <label><input type="checkbox" data-stat="stars" checked> Stars</label>
+              <label><input type="checkbox" data-stat="repos" checked> Repositories</label>
+            </fieldset>
+          </div>
           <div class="card-preview">
-            <img id="cardPreview" alt="Preview of your GitHub Stats card" width="500" height="245">
+            <img id="cardPreview" alt="Preview of your GitHub Stats card">
           </div>
           <label class="small" for="cardSnippetMd">Markdown</label>
           <div class="snippet">

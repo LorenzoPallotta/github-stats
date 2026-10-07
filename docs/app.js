@@ -627,19 +627,61 @@ function workerBase() { return CFG.WORKER_URL.replace(/\/+$/, ""); }
 function setupCard(d, s) {
   const user = d.profile.login;
   const svgUrl = `${workerBase()}/card/${encodeURIComponent(user)}.svg`;
-  $("cardSnippetMd").value = `![${user}'s GitHub stats](${svgUrl})`;
-  $("cardSnippetHtml").value = [
-    "<picture>",
-    `  <source media="(prefers-color-scheme: dark)" srcset="${svgUrl}?theme=dark">`,
-    `  <img alt="${user}'s GitHub stats" src="${svgUrl}">`,
-    "</picture>",
-  ].join("\n");
+  let stamp = Date.now(); // cambia a ogni publish, così l'anteprima non usa la cache
+
+  // Stile della card: va tutto nell'URL (?langs=donut&hide=prs,stars&theme=dark)
+  const OPTS_KEY = "ghs_card_opts";
+  const statBoxes = [...document.querySelectorAll("[data-stat]")];
+  function cardUrl(theme, extra = {}) {
+    const p = new URLSearchParams();
+    if ($("optLangs").value !== "bar") p.set("langs", $("optLangs").value);
+    const hide = statBoxes.filter((b) => !b.checked).map((b) => b.dataset.stat);
+    if (hide.length) p.set("hide", hide.join(","));
+    if (theme === "dark") p.set("theme", "dark");
+    for (const [k, v] of Object.entries(extra)) p.set(k, v);
+    const q = p.toString().replace(/%2C/g, ",");
+    return q ? `${svgUrl}?${q}` : svgUrl;
+  }
+  function siteIsDark() {
+    return document.documentElement.dataset.theme === "dark"
+      || (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
+  }
+  function refreshCard() {
+    const theme = $("optTheme").value;
+    const alt = `${user}'s GitHub stats`;
+    $("cardSnippetMd").value = `![${alt}](${cardUrl(theme)})`;
+    $("cardSnippetHtml").value = theme === "auto"
+      ? [
+          "<picture>",
+          `  <source media="(prefers-color-scheme: dark)" srcset="${cardUrl("dark")}">`,
+          `  <img alt="${alt}" src="${cardUrl("light")}">`,
+          "</picture>",
+        ].join("\n")
+      : `<img alt="${alt}" src="${cardUrl(theme)}">`;
+    const previewTheme = theme === "auto" ? (siteIsDark() ? "dark" : "light") : theme;
+    $("cardPreview").src = cardUrl(previewTheme, { v: stamp });
+    try {
+      localStorage.setItem(OPTS_KEY, JSON.stringify({
+        langs: $("optLangs").value, theme, hide: statBoxes.filter((b) => !b.checked).map((b) => b.dataset.stat),
+      }));
+    } catch {}
+  }
+  // Ripristina le ultime scelte (solo comodità: se non c'è niente si parte dai default)
+  try {
+    const saved = JSON.parse(localStorage.getItem(OPTS_KEY) || "null");
+    if (saved) {
+      if ([...$("optLangs").options].some((o) => o.value === saved.langs)) $("optLangs").value = saved.langs;
+      if ([...$("optTheme").options].some((o) => o.value === saved.theme)) $("optTheme").value = saved.theme;
+      for (const b of statBoxes) b.checked = !(saved.hide || []).includes(b.dataset.stat);
+    }
+  } catch {}
+  for (const el of [$("optLangs"), $("optTheme"), ...statBoxes]) el.addEventListener("change", refreshCard);
+  refreshCard();
 
   const status = (text) => { $("cardStatus").textContent = text; };
   function showPublished(updatedAt) {
-    const dark = document.documentElement.dataset.theme === "dark"
-      || (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
-    $("cardPreview").src = `${svgUrl}?${dark ? "theme=dark&" : ""}v=${Date.now()}`;
+    stamp = Date.now();
+    refreshCard();
     $("cardPublished").hidden = false;
     $("btnCardDelete").hidden = false;
     $("btnCardPublish").textContent = "Update card";

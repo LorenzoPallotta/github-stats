@@ -42,7 +42,7 @@ export default {
     // Lettura pubblica della card: nessun controllo sull'origine.
     const pub = url.pathname.match(/^\/card\/([^/]+)\.(svg|json)$/);
     if (pub && (request.method === "GET" || request.method === "HEAD")) {
-      return serveCard(env, pub[1], pub[2], url.searchParams.get("theme"));
+      return serveCard(env, pub[1], pub[2], url.searchParams);
     }
 
     const cors = {
@@ -214,7 +214,7 @@ function str(v, max) {
 }
 
 /* ---------- Card: lettura ---------- */
-async function serveCard(env, login, ext, theme) {
+async function serveCard(env, login, ext, params) {
   const card = LOGIN_RE.test(login) ? await env.CARDS.get(`card:${login.toLowerCase()}`, "json") : null;
 
   if (ext === "json") {
@@ -225,7 +225,8 @@ async function serveCard(env, login, ext, theme) {
     });
   }
 
-  const svg = card ? renderCard(card, theme) : renderMissing(login, theme);
+  const opts = cardOptions(params);
+  const svg = card ? renderCard(card, opts) : renderMissing(login, opts.theme);
   return new Response(svg, {
     status: 200, // anche se manca: GitHub mostra l'immagine invece di un'icona rotta
     headers: {
@@ -260,61 +261,124 @@ function svgStyle(t) {
   </style>`;
 }
 
-function renderCard(c, theme) {
-  const t = THEMES[theme] || THEMES.light;
-  const W = 500, H = 245;
+/* Opzioni della card, lette dall'URL. Valori sconosciuti -> default. */
+const LANG_STYLES = ["bar", "donut", "pie", "hide"];
+const STAT_KEYS = ["contributions", "private", "streak", "longest", "commits", "prs", "stars", "repos"];
+
+function cardOptions(params) {
+  const theme = params.get("theme") === "dark" ? "dark" : "light";
+  const langs = LANG_STYLES.includes(params.get("langs")) ? params.get("langs") : "bar";
+  const hide = new Set((params.get("hide") || "").split(",").map((s) => s.trim()).filter((s) => STAT_KEYS.includes(s)));
+  return { theme, langs, hide };
+}
+
+function renderCard(c, opts) {
+  const t = THEMES[opts.theme] || THEMES.light;
+  const days = (n) => `${fmt(n)} ${n === 1 ? "day" : "days"}`;
 
   const rows = [
-    ["Total contributions", fmt(c.totalContributions)],
-    ["Private contributions", fmt(c.privateContributions)],
-    ["Current streak", `${fmt(c.currentStreak)} ${c.currentStreak === 1 ? "day" : "days"}`],
-    ["Longest streak", `${fmt(c.longestStreak)} ${c.longestStreak === 1 ? "day" : "days"}`],
-    ["Commits", fmt(c.commits)],
-    ["Pull requests", fmt(c.pullRequests)],
-    ["Stars earned", fmt(c.stars)],
-  ];
-  const stats = rows.map(([label, value], i) => {
+    ["contributions", "Total contributions", fmt(c.totalContributions)],
+    ["private", "Private contributions", fmt(c.privateContributions)],
+    ["streak", "Current streak", days(c.currentStreak)],
+    ["longest", "Longest streak", days(c.longestStreak)],
+    ["commits", "Commits", fmt(c.commits)],
+    ["prs", "Pull requests", fmt(c.pullRequests)],
+    ["stars", "Stars earned", fmt(c.stars)],
+  ].filter(([key]) => !opts.hide.has(key));
+
+  const showLangs = opts.langs !== "hide";
+  const W = showLangs ? 500 : 280;
+  const stats = rows.map(([, label, value], i) => {
     const y = 72 + i * 21;
     return `<text x="25" y="${y}" class="label">${esc(label)}</text>`
-      + `<text x="245" y="${y}" class="value" text-anchor="end">${esc(value)}</text>`;
+      + `<text x="${showLangs ? 245 : W - 25}" y="${y}" class="value" text-anchor="end">${esc(value)}</text>`;
   }).join("");
+  const statsBottom = 72 + Math.max(rows.length - 1, 0) * 21;
 
-  // Lingue: barra unica divisa per percentuale + elenco
-  const langs = c.languages.slice(0, 5);
-  const total = langs.reduce((a, l) => a + l.pct, 0) || 1;
-  const barX = 275, barW = 200;
-  let x = barX;
-  const bar = langs.map((l) => {
-    const w = (l.pct / total) * barW;
-    const r = `<rect x="${x.toFixed(1)}" y="64" width="${w.toFixed(1)}" height="8" fill="${l.color || t.muted}"/>`;
-    x += w;
-    return r;
-  }).join("");
-  const list = langs.map((l, i) => {
-    const y = 96 + i * 21;
-    return `<circle cx="${barX + 5}" cy="${y - 4}" r="5" fill="${l.color || t.muted}"/>`
-      + `<text x="${barX + 16}" y="${y}" class="lang">${esc(l.name)}</text>`
-      + `<text x="${barX + barW}" y="${y}" class="lang" text-anchor="end">${l.pct < 1 ? l.pct.toFixed(1) : Math.round(l.pct)}%</text>`;
-  }).join("");
+  const langs = showLangs ? renderLangs(c.languages.slice(0, 5), opts.langs, t) : { svg: "", bottom: 0 };
+
+  // Altezza: la colonna più lunga + il piè di pagina
+  const H = Math.max(statsBottom, langs.bottom, 100) + 42;
 
   const updated = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", year: "numeric" }).format(new Date(c.updatedAt));
-  const repos = `${fmt(c.repos)} repositories (${fmt(c.privateRepos)} private)`;
-  const name = c.name.length > 28 ? `${c.name.slice(0, 27)}…` : c.name;
+  // Card stretta (senza lingue): testi più corti
+  const repos = opts.hide.has("repos") ? ""
+    : showLangs ? `${fmt(c.repos)} repositories (${fmt(c.privateRepos)} private)` : `${fmt(c.repos)} repos`;
+  const maxName = showLangs ? 28 : 22;
+  const name = c.name.length > maxName ? `${c.name.slice(0, maxName - 1)}…` : c.name;
+  const title = showLangs ? `${name}'s GitHub stats` : name;
+  const foot = `<text x="25" y="${H - 16}" class="foot">${esc(repos)}</text>`
+    + `<text x="${W - 25}" y="${H - 16}" class="foot" text-anchor="end">Updated ${esc(updated)}</text>`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-labelledby="t">
   <title id="t">${esc(c.name)}'s GitHub stats: ${fmt(c.totalContributions)} contributions, ${fmt(c.privateContributions)} private</title>
   ${svgStyle(t)}
   <rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="10" fill="${t.bg}" stroke="${t.border}"/>
-  <text x="25" y="36" class="title">${esc(name)}'s GitHub stats</text>
+  <text x="25" y="36" class="title">${esc(title)}</text>
   ${stats}
-  <text x="${barX}" y="52" class="head">Top languages</text>
-  <clipPath id="bar"><rect x="${barX}" y="64" width="${barW}" height="8" rx="4"/></clipPath>
-  <rect x="${barX}" y="64" width="${barW}" height="8" rx="4" fill="${t.track}"/>
-  <g clip-path="url(#bar)">${bar}</g>
-  ${list || `<text x="${barX}" y="96" class="label">No data</text>`}
-  <text x="25" y="${H - 16}" class="foot">${esc(repos)}</text>
-  <text x="${W - 25}" y="${H - 16}" class="foot" text-anchor="end">Updated ${esc(updated)}</text>
+  ${langs.svg}
+  ${foot}
 </svg>`;
+}
+
+// Colonna destra delle lingue: barra, ciambella o torta. Restituisce lo SVG e dove finisce in basso.
+function renderLangs(langs, style, t) {
+  const x0 = 275, x1 = 475;
+  const head = `<text x="${x0}" y="52" class="head">Top languages</text>`;
+  if (!langs.length) return { svg: `${head}<text x="${x0}" y="78" class="label">No data</text>`, bottom: 78 };
+
+  const total = langs.reduce((a, l) => a + l.pct, 0) || 1;
+  const pct = (l) => (l.pct < 1 ? l.pct.toFixed(1) : Math.round(l.pct));
+  const color = (l) => l.color || t.muted;
+
+  if (style === "bar") {
+    let x = x0;
+    const w = x1 - x0;
+    const segs = langs.map((l) => {
+      const sw = (l.pct / total) * w;
+      const r = `<rect x="${x.toFixed(1)}" y="64" width="${sw.toFixed(1)}" height="8" fill="${color(l)}"/>`;
+      x += sw;
+      return r;
+    }).join("");
+    const list = langs.map((l, i) => {
+      const y = 96 + i * 21;
+      return `<circle cx="${x0 + 5}" cy="${y - 4}" r="5" fill="${color(l)}"/>`
+        + `<text x="${x0 + 16}" y="${y}" class="lang">${esc(l.name)}</text>`
+        + `<text x="${x1}" y="${y}" class="lang" text-anchor="end">${pct(l)}%</text>`;
+    }).join("");
+    return {
+      svg: `${head}<clipPath id="bar"><rect x="${x0}" y="64" width="${w}" height="8" rx="4"/></clipPath>`
+        + `<rect x="${x0}" y="64" width="${w}" height="8" rx="4" fill="${t.track}"/>`
+        + `<g clip-path="url(#bar)">${segs}</g>${list}`,
+      bottom: 96 + (langs.length - 1) * 21,
+    };
+  }
+
+  // Ciambella / torta: cerchi con stroke-dasharray su pathLength=100.
+  // La torta è una ciambella con il tratto largo quanto il raggio, così riempie il centro.
+  const cx = x0 + 40, cy = 108;
+  const [r, sw] = style === "pie" ? [20, 40] : [32, 14];
+  let acc = 0;
+  const segs = langs.map((l) => {
+    const p = (l.pct / total) * 100;
+    const s = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color(l)}" stroke-width="${sw}" pathLength="100"`
+      + ` stroke-dasharray="${p.toFixed(2)} ${(100 - p).toFixed(2)}" stroke-dashoffset="${(-acc).toFixed(2)}"`
+      + ` transform="rotate(-90 ${cx} ${cy})"/>`;
+    acc += p;
+    return s;
+  }).join("");
+  const lx = x0 + 92;
+  const list = langs.map((l, i) => {
+    const y = 74 + i * 19;
+    const n = l.name.length > 11 ? `${l.name.slice(0, 10)}…` : l.name;
+    return `<circle cx="${lx + 4}" cy="${y - 4}" r="4" fill="${color(l)}"/>`
+      + `<text x="${lx + 13}" y="${y}" class="lang">${esc(n)}</text>`
+      + `<text x="${x1}" y="${y}" class="lang" text-anchor="end">${pct(l)}%</text>`;
+  }).join("");
+  return {
+    svg: `${head}<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${t.track}" stroke-width="${sw}"/>${segs}${list}`,
+    bottom: Math.max(cy + 40, 74 + (langs.length - 1) * 19),
+  };
 }
 
 function renderMissing(login, theme) {

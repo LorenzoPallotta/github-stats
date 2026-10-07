@@ -54,6 +54,8 @@ The line looks like this:
 
 If you want the card to switch to dark mode when the reader uses GitHub's dark theme, use the HTML version shown on the site instead. You can also add `?theme=dark` to the link to always get the dark version.
 
+You can also change how the card looks: on the site, under the card, choose how to show your languages (bar, donut, pie or hidden), the theme and which numbers to show. The preview updates as you go and the link to copy changes with it. The same options work in the link by hand, for example `?langs=donut&hide=private,prs`.
+
 To keep the card up to date you have two options:
 
 - **Update card**: come back to the site and click it whenever you want fresh numbers.
@@ -154,6 +156,8 @@ La riga è fatta così:
 ```
 
 Se vuoi che la card passi al tema scuro quando chi la guarda usa GitHub in dark mode, usa la versione HTML che trovi sul sito. Puoi anche aggiungere `?theme=dark` al link per avere sempre la versione scura.
+
+Puoi anche cambiare l'aspetto della card: sul sito, sotto la card, scegli come mostrare i linguaggi (barra, ciambella, torta o nascosti), il tema e quali numeri far vedere. L'anteprima si aggiorna subito e il link da copiare cambia di conseguenza. Le stesse opzioni funzionano anche scritte a mano nel link, per esempio `?langs=donut&hide=private,prs`.
 
 Per tenere la card aggiornata hai due possibilità:
 
