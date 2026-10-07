@@ -2,24 +2,33 @@
  * Cloudflare Worker - login con GitHub e card SVG per i README.
  *
  * Rotte:
- *   POST   /                 scambio "code -> token" (il sito non puo' tenere il client secret)
- *   POST   /card             salva lo snapshot dei numeri della card (serve il token dell'utente)
- *   DELETE /card             cancella la card dell'utente
+ *   POST   /                 scambio "code -> token" (il sito non puo' tenere il client secret);
+ *                            con { keep: true } salva anche il refresh token per l'auto-update
+ *   POST   /card             ricalcola e salva i numeri della card (serve il token dell'utente)
+ *   DELETE /card             cancella la card dell'utente (e l'auto-update)
+ *   DELETE /card/auto        spegne l'auto-update
  *   GET    /card/<login>.svg la card, da mettere nel README (?theme=dark per il tema scuro)
  *   GET    /card/<login>.json i numeri salvati, usati dal sito
  *
- * Il token dell'utente serve solo a chiedere a GitHub chi e' (GET /user) e non
- * viene salvato. Nel KV finiscono solo i numeri mostrati sulla card.
+ * Cron (wrangler.toml, ogni ora): aggiorna le card con l'auto-update attivo,
+ * al massimo una volta al giorno per utente (vedi runAutoUpdates).
+ *
+ * Il token dell'utente serve a sapere chi e' e a calcolare i numeri della card
+ * (stats.js); non viene salvato. Nel KV finiscono:
+ *   card:<login>  i numeri mostrati sulla card
+ *   auth:<login>  solo con l'auto-update attivo: il refresh token, cifrato
+ *                 con AES-GCM (crypto.js), il fuso orario e il prossimo aggiornamento
  *
  * Variabili richieste (Cloudflare -> Worker -> Settings -> Variables):
  *   GITHUB_CLIENT_ID      (secret)
  *   GITHUB_CLIENT_SECRET  (secret)
+ *   TOKEN_KEY             (secret, 32 byte in base64: chiave per cifrare i refresh token)
  *   ALLOWED_ORIGIN        (variabile, es. https://tuonome.github.io)
  *   CARDS                 (KV namespace)
  */
 
 import { buildCard } from "./stats.js";
-import { seal } from "./crypto.js";
+import { seal, open } from "./crypto.js";
 
 const LOGIN_RE = /^[a-z0-9](?:[a-z0-9-]{0,38})$/i;
 
@@ -56,6 +65,10 @@ export default {
 
     return json({ error: "not_found" }, 404, cors);
   },
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runAutoUpdates(env));
+  },
+
 };
 
 /* ---------- Login ---------- */
@@ -154,10 +167,18 @@ async function saveCard(request, env, cors) {
     return json({ error: "stats_failed" }, 502, cors);
   }
 
-  const card = {
+  const card = makeCard(stats, user.login, timeZone);
+
+
+  await env.CARDS.put(`card:${user.login.toLowerCase()}`, JSON.stringify(card));
+  return json({ ok: true, login: user.login, updatedAt: card.updatedAt }, 200, cors);
+}
+
+function makeCard(stats, login, timeZone) {
+  return {
     ...stats,
-    login: user.login,
-    name: str(stats.name, 60) || user.login,
+    login,
+    name: str(stats.name, 60) || login,
     languages: stats.languages.map((l) => ({
       name: str(l.name, 30),
       pct: Math.min(100, Math.max(0, l.pct)),
@@ -166,9 +187,6 @@ async function saveCard(request, env, cors) {
     timeZone,
     updatedAt: new Date().toISOString(),
   };
-
-  await env.CARDS.put(`card:${user.login.toLowerCase()}`, JSON.stringify(card));
-  return json({ ok: true, login: user.login, updatedAt: card.updatedAt }, 200, cors);
 }
 
 
@@ -314,4 +332,68 @@ function json(body, status, headers) {
     status,
     headers: { ...headers, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
+}
+
+/* ---------- Aggiornamento automatico (cron) ---------- */
+const AUTO_BATCH = 3;          // utenti per esecuzione (limite di 50 sotto-richieste)
+const DAY = 24 * 3600e3;
+
+async function runAutoUpdates(env) {
+  const now = Date.now();
+  const { keys } = await env.CARDS.list({ prefix: "auth:" });
+  const due = [];
+  for (const { name } of keys) {
+    const entry = await env.CARDS.get(name, "json");
+    if (entry && entry.nextRun <= now) due.push({ name, entry });
+  }
+  due.sort((a, b) => a.entry.nextRun - b.entry.nextRun);
+
+  for (const { name, entry } of due.slice(0, AUTO_BATCH)) {
+    try {
+      await autoUpdate(env, name, entry);
+    } catch (e) {
+      console.error(`auto-update ${name}:`, e.message);
+      // riprova tra un'ora (entry contiene già l'ultimo refresh token valido)
+      entry.nextRun = Date.now() + 3600e3;
+      await env.CARDS.put(name, JSON.stringify(entry));
+    }
+  }
+}
+
+async function autoUpdate(env, key, entry) {
+  const login = key.slice("auth:".length);
+
+  // Se la card è stata rimossa, non c'è niente da aggiornare: via anche il token
+  const existing = await env.CARDS.get(`card:${login}`, "json");
+  if (!existing) { await env.CARDS.delete(key); return; }
+
+  // 1. Nuovo access token dal refresh token
+  const res = await fetch("https://github.com/login/oauth/access_token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": "github-stats-auth-worker" },
+    body: JSON.stringify({
+      client_id: env.GITHUB_CLIENT_ID,
+      client_secret: env.GITHUB_CLIENT_SECRET,
+      grant_type: "refresh_token",
+      refresh_token: await open(env, entry),
+    }),
+  });
+  const t = await res.json().catch(() => ({}));
+
+  if (!t.access_token || !t.refresh_token) {
+    // Token revocato o scaduto: l'utente deve riattivare l'auto-update
+    if (t.error === "bad_refresh_token") { await env.CARDS.delete(key); console.log(`auto-update ${login}: token revoked, disabled`); return; }
+    throw new Error(t.error || `refresh HTTP ${res.status}`);
+  }
+
+  // 2. Salva SUBITO il nuovo refresh token: quello vecchio non vale più
+  //    (aggiorna anche entry: se dopo qualcosa fallisce, il catch salva il token nuovo)
+  Object.assign(entry, await seal(env, t.refresh_token), { nextRun: Date.now() + DAY });
+  await env.CARDS.put(key, JSON.stringify(entry));
+
+  // 3. Ricalcola e salva la card
+  const stats = await buildCard(t.access_token, entry.timeZone);
+  if (stats.login.toLowerCase() !== login) throw new Error("login mismatch");
+  await env.CARDS.put(`card:${login}`, JSON.stringify(makeCard(stats, stats.login, entry.timeZone)));
+  console.log(`auto-update ${login}: ok`);
 }

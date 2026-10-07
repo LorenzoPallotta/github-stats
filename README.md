@@ -54,7 +54,12 @@ The line looks like this:
 
 If you want the card to switch to dark mode when the reader uses GitHub's dark theme, use the HTML version shown on the site instead. You can also add `?theme=dark` to the link to always get the dark version.
 
-The card doesn't update by itself. When you want fresh numbers, come back to the site and click **Update card**. GitHub may take up to 30 minutes to show the new version. To take it down, click **Remove card**.
+To keep the card up to date you have two options:
+
+- **Update card**: come back to the site and click it whenever you want fresh numbers.
+- **Turn on auto-update**: the card refreshes by itself once a day. GitHub asks you to sign in again for a moment, then you're back on the site. You can turn it off at any time with **Turn off auto-update**.
+
+GitHub may take up to 30 minutes to show the new version. To take the card down, click **Remove card** (this also turns off auto-update).
 
 ### What the app can access
 
@@ -74,7 +79,12 @@ For private repositories, it only sees the ones you picked in step 4. Repositori
 
 Your stats are read directly by your browser from GitHub. Nothing is saved on a server and there are no trackers or analytics.
 
-The only exception is the card, and only if you publish it: in that case the numbers shown on the card (contributions, streaks, languages and so on) are saved so the image can be displayed in READMEs. Your login is never saved. Once you remove the card, those numbers are deleted. Your login lasts until you close the tab or click **Sign out**, and it expires on its own after 8 hours anyway.
+The exceptions are the card and auto-update, and only if you turn them on:
+
+- **Card**: when you publish or update it, the server reads your numbers from GitHub with your login and saves only the numbers shown on the card (contributions, streaks, languages and so on), so the image can be displayed in READMEs. Once you remove the card, those numbers are deleted.
+- **Auto-update**: to refresh the card without you, the server keeps a read-only access key from GitHub, encrypted, and uses it once a day only to recompute the card. It is deleted as soon as you turn off auto-update or remove the card, and it stops working if you revoke the app on GitHub.
+
+Without auto-update your login is never saved: it lasts until you close the tab or click **Sign out**, and it expires on its own after 8 hours anyway.
 
 ### Removing access
 
@@ -89,6 +99,7 @@ You can take back access whenever you want from your GitHub settings:
 - **"Session expired"**: sign in again.
 - **Traffic section is empty**: GitHub only shares traffic for repositories you own or can write to, and only for the last 14 days.
 - **Organization repositories missing**: the app has to be installed on the organization too, and an organization admin may need to approve it.
+- **Auto-update turned itself off**: this happens if you revoked or uninstalled the app on GitHub. Sign in and click **Turn on auto-update** again.
 
 <p align="right"><a href="#github-stats">Back to top ↑</a></p>
 
@@ -144,7 +155,12 @@ La riga è fatta così:
 
 Se vuoi che la card passi al tema scuro quando chi la guarda usa GitHub in dark mode, usa la versione HTML che trovi sul sito. Puoi anche aggiungere `?theme=dark` al link per avere sempre la versione scura.
 
-La card non si aggiorna da sola. Quando vuoi i numeri aggiornati, torna sul sito e clicca **Update card**. GitHub può metterci fino a 30 minuti a mostrare la nuova versione. Per toglierla, clicca **Remove card**.
+Per tenere la card aggiornata hai due possibilità:
+
+- **Update card**: torna sul sito e cliccalo quando vuoi i numeri aggiornati.
+- **Turn on auto-update**: la card si aggiorna da sola una volta al giorno. GitHub ti fa rifare l'accesso per un attimo, poi torni sul sito. Puoi spegnerlo quando vuoi con **Turn off auto-update**.
+
+GitHub può metterci fino a 30 minuti a mostrare la nuova versione. Per togliere la card, clicca **Remove card** (spegne anche l'aggiornamento automatico).
 
 ### A cosa ha accesso l'app
 
@@ -164,7 +180,12 @@ Dei repository privati vede solo quelli che hai scelto al punto 4. Gli altri res
 
 Le statistiche vengono lette direttamente dal tuo browser da GitHub. Non viene salvato niente su nessun server e non ci sono tracker né analytics.
 
-L'unica eccezione è la card, e solo se la pubblichi: in quel caso vengono salvati i numeri che compaiono sulla card (contributi, streak, linguaggi e così via), perché l'immagine possa essere mostrata nei README. Il tuo accesso non viene mai salvato. Quando togli la card, quei numeri vengono cancellati. L'accesso dura finché non chiudi la scheda o clicchi **Sign out**, e comunque scade da solo dopo 8 ore.
+Le eccezioni sono la card e l'aggiornamento automatico, e solo se li attivi tu:
+
+- **Card**: quando la pubblichi o la aggiorni, il server legge i tuoi numeri da GitHub con il tuo accesso e salva solo i numeri che compaiono sulla card (contributi, streak, linguaggi e così via), perché l'immagine possa essere mostrata nei README. Quando togli la card, quei numeri vengono cancellati.
+- **Aggiornamento automatico**: per aggiornare la card senza di te, il server conserva una chiave di accesso di GitHub in sola lettura, cifrata, e la usa una volta al giorno solo per ricalcolare la card. Viene cancellata appena spegni l'aggiornamento automatico o togli la card, e smette di funzionare se revochi l'app su GitHub.
+
+Senza aggiornamento automatico il tuo accesso non viene mai salvato: dura finché non chiudi la scheda o clicchi **Sign out**, e comunque scade da solo dopo 8 ore.
 
 ### Togliere l'accesso
 
@@ -179,5 +200,6 @@ Puoi revocare l'accesso quando vuoi dalle impostazioni di GitHub:
 - **"Session expired"**: rifai l'accesso.
 - **La sezione Traffic è vuota**: GitHub mostra il traffico solo dei repository tuoi o su cui puoi scrivere, e solo degli ultimi 14 giorni.
 - **Mancano i repository di un'organizzazione**: l'app va installata anche sull'organizzazione, e potrebbe servire l'approvazione di un amministratore.
+- **L'aggiornamento automatico si è spento da solo**: succede se hai revocato o disinstallato l'app su GitHub. Accedi di nuovo e clicca **Turn on auto-update**.
 
 <p align="right"><a href="#github-stats">Torna su ↑</a></p>
