@@ -40,7 +40,7 @@ When you're done, click **Sign out**.
 
 You can show your stats on your GitHub profile, like this:
 
-![Example card](https://github-stats-auth.lorenzo-pallotta99.workers.dev/card/lorenzopallotta.svg)
+![Example card](https://github-stats-auth.lorenzo-pallotta99.workers.dev/card/lorenzopallotta.svg?v=1)
 
 1. Sign in on the site and scroll down to **Card for your README**.
 2. Click **Publish card**.
@@ -130,7 +130,7 @@ Quando hai finito, clicca **Sign out**.
 
 Puoi mostrare le tue statistiche sul tuo profilo GitHub, così:
 
-![Esempio di card](https://github-stats-auth.lorenzo-pallotta99.workers.dev/card/lorenzopallotta.svg)
+![Example card](https://github-stats-auth.lorenzo-pallotta99.workers.dev/card/lorenzopallotta.svg?v=1)
 
 1. Accedi al sito e scorri fino a **Card for your README**.
 2. Clicca **Publish card**.
