@@ -44,7 +44,7 @@ You can show your stats on your GitHub profile, like this:
 
 1. Sign in on the site and scroll down to **Card for your README**.
 2. Click **Publish card**.
-3. Copy the line it gives you and paste it into any `.md` file, for example the README of your profile repository (the one named like your username).
+3. Copy the line it gives you and paste it into any `.md` file.
 
 The line looks like this:
 
@@ -147,7 +147,7 @@ Puoi mostrare le tue statistiche sul tuo profilo GitHub, così:
 
 1. Accedi al sito e scorri fino a **Card for your README**.
 2. Clicca **Publish card**.
-3. Copia la riga che ti viene data e incollala in un qualsiasi file `.md`, per esempio il README del repository del tuo profilo (quello che si chiama come il tuo username).
+3. Copia la riga che ti viene data e incollala in un qualsiasi file `.md`.
 
 La riga è fatta così:
 
